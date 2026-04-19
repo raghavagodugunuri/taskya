@@ -1,0 +1,29 @@
+{
+  "appId": "com.taskya.app",
+  "appName": "Taskya",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "taskya-release.keystore",
+      "keystoreAlias": "taskya"
+    }
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#FAF8F5",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "Light",
+      "backgroundColor": "#FAF8F5"
+    }
+  }
+}

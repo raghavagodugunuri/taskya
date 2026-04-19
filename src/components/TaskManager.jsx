@@ -70,7 +70,7 @@ const I = {
 
 /* ═══════════════════════ LOGIN ═══════════════════════ */
 
-function LoginPage({ onLogin, users, setUsers }) {
+function LoginPage({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
@@ -85,33 +85,49 @@ function LoginPage({ onLogin, users, setUsers }) {
   const trimmed = email.trim().toLowerCase();
   const isSignUp = mode === "signup";
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError("");
     if (!trimmed) { setError("Please enter your username"); return; }
     if (!/^[a-z][a-z0-9._]*$/.test(trimmed)) { setError("Username: lowercase letters, numbers, dots or underscores only"); return; }
-
     if (!password) { setError("Please enter your password"); return; }
     if (password.length < 4) { setError("Password must be at least 4 characters"); return; }
-
     if (isSignUp) {
       if (!confirmPass) { setError("Please confirm your password"); return; }
       if (password !== confirmPass) { setError("Passwords do not match"); return; }
     }
 
     setLoading(true);
-    setTimeout(() => {
+    try {
+      // Check if user exists in Supabase (shared across ALL devices)
+      const { data: existingUsers } = await sb.from("taskya_users").selectWhere("*", { username: trimmed });
+      const existingUser = existingUsers && existingUsers[0];
+
       if (isSignUp) {
-        if (users[trimmed]) { setError(`"${trimmed}" is already registered. Please sign in.`); setLoading(false); return; }
-        setUsers(prev => ({ ...prev, [trimmed]: password }));
-        setLoading(false);
+        if (existingUser) {
+          setError(`"${trimmed}" is already registered on another device. Please sign in.`);
+          setLoading(false);
+          return;
+        }
+        // Register new user in shared database
+        await sb.from("taskya_users").insert({ username: trimmed, password_hash: password });
         onLogin(trimmed);
       } else {
-        if (!users[trimmed]) { setError(`"${trimmed}" is not registered. Please sign up first.`); setLoading(false); return; }
-        if (users[trimmed] !== password) { setError("Incorrect password"); setLoading(false); return; }
-        setLoading(false);
+        if (!existingUser) {
+          setError(`"${trimmed}" is not registered. Please sign up first.`);
+          setLoading(false);
+          return;
+        }
+        if (existingUser.password_hash !== password) {
+          setError("Incorrect password");
+          setLoading(false);
+          return;
+        }
         onLogin(trimmed);
       }
-    }, 400);
+    } catch (e) {
+      setError("Connection error. Check your internet and try again.");
+      setLoading(false);
+    }
   };
 
   const setSignin = () => { setMode("signin"); setError(""); setPassword(""); setConfirmPass(""); };
@@ -148,7 +164,7 @@ function LoginPage({ onLogin, users, setUsers }) {
 
       {/* logo */}
       <div style={{ textAlign: "center", marginBottom: 40, animation: "floatUp 0.6s ease both" }}>
-        <img src="/icon-192.png" alt="TASKYA" style={{
+        <img src={TASKYA_ICON} alt="TASKYA" style={{
           width: 80, height: 80, borderRadius: 20,
           margin: "0 auto 16px", display: "block",
           boxShadow: "0 8px 32px rgba(28,25,23,0.15)",
@@ -267,15 +283,67 @@ function LoginPage({ onLogin, users, setUsers }) {
 
 /* ───────────────────────── main ───────────────────────── */
 
-// Helper: read from localStorage safely
-function readLS(key, fallback) {
-  try {
-    const v = localStorage.getItem(key);
-    return v !== null ? JSON.parse(v) : fallback;
-  } catch { return fallback; }
-}
+// ══════════════════════════════════════════════════════════
+// SUPABASE CONFIG — replace with your actual credentials
+// Get from: https://supabase.com → your project → Settings → API
+// ══════════════════════════════════════════════════════════
+const SUPABASE_URL = "https://ocqbgkyqriyyiniulhbi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWJna3lxcml5eWluaXVsaGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1ODc2NzEsImV4cCI6MjA5MjE2MzY3MX0.ynBswgswMs1u3WOnuIogYJRf5ai-hoaZnbLwShgTgRM";
 
-// Helper: write to localStorage safely
+// Simple Supabase REST client (no npm package needed)
+const sb = {
+  from: (table) => ({
+    select: async (cols = "*") => {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${cols}`, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      return { data: await r.json(), error: r.ok ? null : "error" };
+    },
+    insert: async (rows) => {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json", Prefer: "return=representation"
+        },
+        body: JSON.stringify(Array.isArray(rows) ? rows : [rows])
+      });
+      return { data: await r.json(), error: r.ok ? null : "error" };
+    },
+    update: async (data, match) => {
+      const params = Object.entries(match).map(([k,v]) => `${k}=eq.${v}`).join("&");
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+        method: "PATCH",
+        headers: {
+          apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json", Prefer: "return=representation"
+        },
+        body: JSON.stringify(data)
+      });
+      return { data: await r.json(), error: r.ok ? null : "error" };
+    },
+    delete: async (match) => {
+      const params = Object.entries(match).map(([k,v]) => `${k}=eq.${v}`).join("&");
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+        method: "DELETE",
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      return { error: r.ok ? null : "error" };
+    },
+    selectWhere: async (cols = "*", match = {}) => {
+      const params = Object.entries(match).map(([k,v]) => `${k}=eq.${encodeURIComponent(v)}`).join("&");
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${cols}&${params}`, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+      });
+      return { data: await r.json(), error: r.ok ? null : "error" };
+    },
+  })
+};
+
+// Session persistence (device-local — only session, not data)
+function readLS(key, fallback) {
+  try { const v = localStorage.getItem(key); return v !== null ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
 function writeLS(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
@@ -283,27 +351,85 @@ function writeLS(key, value) {
 export default function TaskManager() {
   const [loggedIn, setLoggedIn] = useState(() => readLS("taskya_loggedIn", false));
   const [userName, setUserName] = useState(() => readLS("taskya_userName", ""));
-  const [groups, setGroups] = useState(() => readLS("taskya_groups", defaultGroups));
-  const [invitations, setInvitations] = useState(() => readLS("taskya_invitations", []));
-  const [users, setUsers] = useState(() => readLS("taskya_users", {}));
-  const [allTasks, setAllTasks] = useState(() => readLS("taskya_tasks", []));
+  const [groups, setGroups] = useState([]);
+  const [invitations, setInvitations] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Persist every state change to localStorage
+  // Load all data from Supabase on mount / login
+  const loadData = async (uname) => {
+    setLoading(true);
+    try {
+      // Load groups where user is a member
+      const { data: members } = await sb.from("taskya_group_members").selectWhere("group_id", { username: uname });
+      const memberGroupIds = (members || []).map(m => m.group_id);
+
+      let loadedGroups = [];
+      if (memberGroupIds.length > 0) {
+        const idsParam = memberGroupIds.map(id => `id=eq.${id}`).join(",");
+        const r = await fetch(`${SUPABASE_URL}/rest/v1/taskya_groups?or=(${idsParam})&select=*`, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        });
+        const groupsRaw = await r.json();
+
+        // Load members for each group
+        for (const g of groupsRaw) {
+          const { data: gMembers } = await sb.from("taskya_group_members").selectWhere("username", { group_id: g.id });
+          loadedGroups.push({ ...g, members: (gMembers || []).map(m => m.username), createdBy: g.created_by, isDefault: g.is_default });
+        }
+      }
+
+      // Ensure General group exists for this user
+      const hasGeneral = loadedGroups.some(g => g.isDefault && g.createdBy === uname);
+      if (!hasGeneral) {
+        const gId = `general_${uname}_${Date.now()}`;
+        await sb.from("taskya_groups").insert({ id: gId, name: "General", color: "#D97706", created_by: uname, is_default: true });
+        await sb.from("taskya_group_members").insert({ group_id: gId, username: uname });
+        loadedGroups.push({ id: gId, name: "General", color: "#D97706", createdBy: uname, isDefault: true, members: [uname] });
+      }
+
+      setGroups(loadedGroups);
+
+      // Load tasks for user's groups
+      const allGroupIds = loadedGroups.map(g => g.id);
+      let loadedTasks = [];
+      if (allGroupIds.length > 0) {
+        const idsParam2 = allGroupIds.map(id => `group_id=eq.${id}`).join(",");
+        const r2 = await fetch(`${SUPABASE_URL}/rest/v1/taskya_tasks?or=(${idsParam2})&select=*`, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
+        });
+        const tasksRaw = await r2.json();
+        loadedTasks = (tasksRaw || []).map(t => ({
+          ...t, id: t.id, group: t.group_name, groupId: t.group_id,
+          createdBy: t.created_by, createdAt: t.created_at,
+          dueDate: t.due_date, dueTime: t.due_time,
+          completedAt: t.completed_at,
+          activity: t.activity || []
+        }));
+      }
+      setAllTasks(loadedTasks);
+
+      // Load invitations for this user
+      const { data: invs } = await sb.from("taskya_invitations").selectWhere("*", { to_user: uname });
+      setInvitations((invs || []).map(inv => ({
+        id: inv.id, groupId: inv.group_id, group: inv.group_name,
+        from: inv.from_user, to: inv.to_user, status: inv.status
+      })));
+
+    } catch (e) { console.error("Load error", e); }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (loggedIn && userName) { loadData(userName); }
+    else { setLoading(false); }
+  }, [loggedIn, userName]);
+
+  // Persist session locally
   useEffect(() => { writeLS("taskya_loggedIn", loggedIn); }, [loggedIn]);
   useEffect(() => { writeLS("taskya_userName", userName); }, [userName]);
-  useEffect(() => { writeLS("taskya_groups", groups); }, [groups]);
-  useEffect(() => { writeLS("taskya_invitations", invitations); }, [invitations]);
-  useEffect(() => { writeLS("taskya_users", users); }, [users]);
-  useEffect(() => { writeLS("taskya_tasks", allTasks); }, [allTasks]);
 
   const handleLogin = (name) => {
-    setGroups(prev => {
-      const hasGroup = prev.some(g => g.members.includes(name));
-      if (!hasGroup) {
-        return [...prev, { id: Date.now(), name: "General", color: "#D97706", members: [name], createdBy: name, isDefault: true }];
-      }
-      return prev;
-    });
     setUserName(name);
     setLoggedIn(true);
   };
@@ -311,20 +437,38 @@ export default function TaskManager() {
   const handleLogout = () => {
     setLoggedIn(false);
     setUserName("");
+    setGroups([]); setAllTasks([]); setInvitations([]);
     writeLS("taskya_loggedIn", false);
     writeLS("taskya_userName", "");
   };
 
+  if (loading) {
+    return (
+      <div style={{
+        fontFamily: "'DM Sans', sans-serif", background: "var(--bg)",
+        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12,
+      }}>
+        <style>{`:root{--bg:#FAF8F5;--accent:#D97706;}`}</style>
+        <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 72, height: 72, borderRadius: 18, marginBottom: 8 }} />
+        <div style={{ width: 36, height: 36, border: "3px solid #E7E1DA", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <p style={{ fontSize: 13, color: "#78716C" }}>Loading TASKYA...</p>
+      </div>
+    );
+  }
+
   if (!loggedIn) {
-    return <LoginPage users={users} setUsers={setUsers} onLogin={handleLogin} />;
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   return <AppShell userName={userName} onLogout={handleLogout}
-    groups={groups} setGroups={setGroups} invitations={invitations} setInvitations={setInvitations} users={users}
-    allTasks={allTasks} setAllTasks={setAllTasks} />;
+    groups={groups} setGroups={setGroups}
+    invitations={invitations} setInvitations={setInvitations}
+    allTasks={allTasks} setAllTasks={setAllTasks}
+    reloadData={() => loadData(userName)} />;
 }
 
-function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvitations, users, allTasks, setAllTasks }) {
+function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvitations, allTasks, setAllTasks, reloadData }) {
   const [page, setPage] = useState("dashboard");
   const [mounted, setMounted] = useState(false);
 
@@ -339,60 +483,71 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     return userGroupNames.has(t.group);
   });
 
-  const dispatch = (action) => {
-    setAllTasks(prev => {
-      const nowTs = Date.now();
-      switch (action.type) {
-        case "ADD_TASK": {
-          const payload = action.payload || action.task;
-          return [...prev, {
-            ...payload, id: nowTs, status: "pending", createdBy: userName,
-            createdAt: nowTs,
-            activity: [{ type: "created", by: userName, at: nowTs }],
-          }];
-        }
-        case "TOGGLE_STATUS": {
-          return prev.map(t => {
-            if (t.id !== action.id) return t;
-            const activity = t.activity || [];
-            if (t.status === "completed") {
-              return { ...t, status: "pending", completedAt: null,
-                activity: [...activity, { type: "reopened", by: userName, at: nowTs }] };
-            }
-            const wasPreviouslyMissed = t.status === "missed";
-            return { ...t, status: "completed", completedAt: nowTs, delayed: wasPreviouslyMissed || t.delayed,
-              activity: [...activity, { type: "completed", by: userName, at: nowTs }] };
-          });
-        }
-        case "DELETE_TASK":
-          return prev.filter(t => t.id !== action.id);
-        case "AUTO_MISS": {
-          return prev.map(t => {
-            if (t.status !== "pending" || !t.dueDate) return t;
-            const dueStr = t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59");
-            const due = new Date(dueStr).getTime();
-            if (due < nowTs) {
-              const activity = t.activity || [];
-              return { ...t, status: "missed",
-                activity: [...activity, { type: "missed", by: "system", at: nowTs }] };
-            }
-            return t;
-          });
-        }
-        case "UPDATE_DUE":
-          return prev.map(t => {
-            if (t.id !== action.id) return t;
-            const activity = t.activity || [];
-            return {
-              ...t, dueDate: action.dueDate, dueTime: action.dueTime,
-              status: "pending", rescheduled: true, delayed: true,
-              activity: [...activity, { type: "rescheduled", by: userName, at: nowTs, dueDate: action.dueDate, dueTime: action.dueTime }],
-            };
-          });
-        default:
-          return prev;
+  const dispatch = async (action) => {
+    const nowTs = Date.now();
+    switch (action.type) {
+      case "ADD_TASK": {
+        const payload = action.payload || action.task;
+        const newTask = {
+          ...payload, id: String(nowTs), status: "pending", createdBy: userName,
+          createdAt: nowTs, activity: [{ type: "created", by: userName, at: nowTs }],
+        };
+        // Save to Supabase
+        await sb.from("taskya_tasks").insert({
+          id: newTask.id, title: newTask.title, description: newTask.desc || "",
+          group_id: newTask.groupId, group_name: newTask.group,
+          priority: newTask.priority, status: "pending", time: newTask.time,
+          due_date: newTask.dueDate, due_time: newTask.dueTime,
+          created_by: userName, created_at: nowTs, activity: newTask.activity,
+        });
+        setAllTasks(prev => [...prev, newTask]);
+        break;
       }
-    });
+      case "TOGGLE_STATUS": {
+        setAllTasks(prev => prev.map(t => {
+          if (t.id !== action.id) return t;
+          const activity = t.activity || [];
+          if (t.status === "completed") {
+            const updated = { ...t, status: "pending", completedAt: null, activity: [...activity, { type: "reopened", by: userName, at: nowTs }] };
+            sb.from("taskya_tasks").update({ status: "pending", completed_at: null, activity: updated.activity }, { id: t.id });
+            return updated;
+          }
+          const wasMissed = t.status === "missed";
+          const updated = { ...t, status: "completed", completedAt: nowTs, delayed: wasMissed || t.delayed, activity: [...activity, { type: "completed", by: userName, at: nowTs }] };
+          sb.from("taskya_tasks").update({ status: "completed", completed_at: nowTs, delayed: updated.delayed, activity: updated.activity }, { id: t.id });
+          return updated;
+        }));
+        break;
+      }
+      case "DELETE_TASK":
+        await sb.from("taskya_tasks").delete({ id: action.id });
+        setAllTasks(prev => prev.filter(t => t.id !== action.id));
+        break;
+      case "AUTO_MISS": {
+        setAllTasks(prev => prev.map(t => {
+          if (t.status !== "pending" || !t.dueDate) return t;
+          const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59")).getTime();
+          if (due < nowTs) {
+            const activity = [...(t.activity || []), { type: "missed", by: "system", at: nowTs }];
+            sb.from("taskya_tasks").update({ status: "missed", activity }, { id: t.id });
+            return { ...t, status: "missed", activity };
+          }
+          return t;
+        }));
+        break;
+      }
+      case "UPDATE_DUE": {
+        setAllTasks(prev => prev.map(t => {
+          if (t.id !== action.id) return t;
+          const activity = [...(t.activity || []), { type: "rescheduled", by: userName, at: nowTs, dueDate: action.dueDate, dueTime: action.dueTime }];
+          const updated = { ...t, dueDate: action.dueDate, dueTime: action.dueTime, status: "pending", rescheduled: true, delayed: true, activity };
+          sb.from("taskya_tasks").update({ due_date: action.dueDate, due_time: action.dueTime, status: "pending", rescheduled: true, delayed: true, activity }, { id: t.id });
+          return updated;
+        }));
+        break;
+      }
+      default: break;
+    }
   };
 
   // Auto-mark overdue pending tasks as missed
@@ -499,7 +654,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       <div style={{ paddingBottom: 90, minHeight: "100vh", background: "var(--bg)" }}>
         {page === "dashboard" && <Dashboard tasks={tasks} groups={groups.filter(g => g.members.includes(userName))} userName={userName} onLogout={onLogout} setPage={setPage} />}
         {page === "tasks" && <Tasks tasks={tasks} dispatch={dispatch} groups={groups.filter(g => g.members.includes(userName))} onLogout={onLogout} userName={userName} />}
-        {page === "groups" && <GroupsPage groups={groups} setGroups={setGroups} tasks={tasks} onLogout={onLogout} userName={userName} invitations={invitations} setInvitations={setInvitations} users={users} />}
+        {page === "groups" && <GroupsPage groups={groups} setGroups={setGroups} tasks={tasks} onLogout={onLogout} userName={userName} invitations={invitations} setInvitations={setInvitations} reloadData={reloadData} />}
         {/* Rewards hidden for now */}
         {/* {page === "rewards" && <Rewards tasks={tasks} onLogout={onLogout} />} */}
       </div>
@@ -628,7 +783,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
     <div style={{ padding: "20px var(--page-px, 18px)", minHeight: "calc(100vh - 90px)", background: "var(--bg)" }}>
       <div className="fu" style={{ marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/icon-192.png" alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
+          <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
           <div>
             <p style={{ fontSize: 11, color: "var(--text2)", letterSpacing: "0.04em" }}>WELCOME BACK</p>
             <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
@@ -852,7 +1007,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
     }}>
       <div className="fu" style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/icon-192.png" alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
+          <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
           <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
             TASKYA<span style={{ color: "var(--accent)" }}>.</span>
           </h2>
@@ -889,21 +1044,24 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
 
       {/* time filter pills — shown on all tabs */}
       <div className="fu" style={{
-        display: "flex", gap: 6, marginBottom: 14, overflowX: "auto",
-        WebkitOverflowScrolling: "touch", paddingBottom: 2, animationDelay: "0.08s",
+        display: "flex", gap: 6, marginBottom: 14,
+        flexWrap: "nowrap", animationDelay: "0.08s",
+        width: "100%",
       }}>
         {timeFilters.map(f => {
           const active = timeFilter === f;
           const label = tab === "add" && f === "all" ? "Anytime" : f;
           return (
             <button key={f} onClick={() => setTimeFilter(f)} style={{
-              padding: "6px 14px", border: "1.5px solid",
+              flex: 1,
+              padding: "7px 4px", border: "1.5px solid",
               borderColor: active ? "var(--accent)" : "var(--border)",
-              borderRadius: 100, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              borderRadius: 100, fontSize: 11, fontWeight: 600, cursor: "pointer",
               fontFamily: "inherit", whiteSpace: "nowrap",
               background: active ? "var(--accent-lt)" : "var(--bg-card)",
               color: active ? "var(--accent)" : "var(--text2)",
               transition: "all 0.15s ease", textTransform: "capitalize",
+              textAlign: "center", minWidth: 0,
             }}>{label}</button>
           );
         })}
@@ -1397,7 +1555,9 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
   const [errors, setErrors] = useState({});
   const [dueDateManual, setDueDateManual] = useState(false);
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
   const groupBtnRef = useRef(null);
+  const priorityBtnRef = useRef(null);
 
   // Sync form when time filter pill changes
   useEffect(() => {
@@ -1453,6 +1613,7 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
   const errStyle = { fontSize: 10, color: "var(--red)", marginTop: 4, fontWeight: 500 };
 
   return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 260px)" }}>
     <div className="si" style={{
       background: "var(--bg-card)", borderRadius: "var(--r)", padding: 20,
       border: "1px solid var(--border)", boxShadow: "var(--shm)",
@@ -1573,16 +1734,84 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
               </>
             )}
           </div>
-          <div>
+          <div style={{ position: "relative" }}>
             <label style={lbl}>Priority {reqDot}</label>
-            <select value={form.priority} onChange={e => { setForm({...form, priority: e.target.value}); if (errors.priority) setErrors(p => ({...p, priority: undefined})); }}
-              style={errors.priority ? fldErr : fld}>
-              <option value="">Select priority</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
+            <button ref={priorityBtnRef} type="button"
+              onClick={() => setPriorityDropdownOpen(o => !o)}
+              style={{
+                ...((errors.priority ? fldErr : fld)),
+                textAlign: "left", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                gap: 8,
+              }}>
+              {form.priority ? (() => {
+                const colors = { high: { color: "var(--red)", bg: "var(--red-lt)" }, medium: { color: "var(--accent)", bg: "var(--accent-lt)" }, low: { color: "var(--green)", bg: "var(--green-lt)" } };
+                const c = colors[form.priority] || colors.medium;
+                return (
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
+                    <span style={{ textTransform: "capitalize" }}>{form.priority}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                      background: c.bg, color: c.color,
+                      textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                    }}>{form.priority}</span>
+                  </span>
+                );
+              })() : <span style={{ color: "var(--text2)" }}>Select priority</span>}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{
+                flexShrink: 0, color: "var(--text2)",
+                transition: "transform 0.2s ease",
+                transform: priorityDropdownOpen ? "rotate(180deg)" : "rotate(0)",
+              }}><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
             {errors.priority && <div style={errStyle}>{errors.priority}</div>}
+
+            {priorityDropdownOpen && (
+              <>
+                <div onClick={() => setPriorityDropdownOpen(false)} style={{
+                  position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 150,
+                }} />
+                <div style={{
+                  position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0,
+                  background: "var(--bg-card)", border: "1px solid var(--border)",
+                  borderRadius: "var(--rs)", boxShadow: "0 -8px 24px rgba(28,25,23,0.12)",
+                  zIndex: 160, animation: "si 0.15s ease both",
+                }}>
+                  {[
+                    { value: "high",   label: "High",   color: "var(--red)",    bg: "var(--red-lt)"    },
+                    { value: "medium", label: "Medium", color: "var(--accent)", bg: "var(--accent-lt)" },
+                    { value: "low",    label: "Low",    color: "var(--green)",  bg: "var(--green-lt)"  },
+                  ].map((p, idx, arr) => {
+                    const selected = form.priority === p.value;
+                    return (
+                      <button key={p.value} type="button" onClick={() => {
+                        setForm({ ...form, priority: p.value });
+                        if (errors.priority) setErrors(pr => ({ ...pr, priority: undefined }));
+                        setPriorityDropdownOpen(false);
+                      }} style={{
+                        width: "100%", padding: "11px 14px", border: "none",
+                        background: selected ? "var(--bg)" : "transparent",
+                        color: "var(--text)", fontFamily: "inherit", fontSize: 13,
+                        cursor: "pointer", textAlign: "left",
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        gap: 8, transition: "background 0.1s ease",
+                        borderBottom: idx === arr.length - 1 ? "none" : "1px solid var(--border)",
+                      }}
+                      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = "var(--bg)"; }}
+                      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = "transparent"; }}
+                      >
+                        <span style={{ fontWeight: selected ? 600 : 500 }}>{p.label}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                          background: p.bg, color: p.color,
+                          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                        }}>{p.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
         {!isNoDue && (
@@ -1609,12 +1838,13 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         </button>
       </div>
     </div>
+    </div>
   );
 }
 
 /* ═══════════════════════ GROUPS ═══════════════════════ */
 
-function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations, setInvitations, users }) {
+function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations, setInvitations, reloadData }) {
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#D97706");
@@ -1622,14 +1852,13 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   const [inviteToast, setInviteToast] = useState(null);
   const [confirmCreate, setConfirmCreate] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [confirmRemoveMember, setConfirmRemoveMember] = useState(null); // { groupId, memberName }
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState(null);
   const topRef = useRef(null);
 
   const toggleForm = () => {
     const next = !showForm;
     setShowForm(next);
     if (next) {
-      // scroll to top so user sees the newly opened form
       setTimeout(() => {
         if (topRef.current) topRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
         else window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1647,53 +1876,70 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   const addGroup = () => {
     const trimmed = newName.trim();
     if (!trimmed) return;
-    // check if user already has a group with this name (case-insensitive)
     const exists = groups.some(g => g.members.includes(userName) && g.name.toLowerCase() === trimmed.toLowerCase());
     if (exists) { showInviteToast(`You already have a group named "${trimmed}"`, "red"); return; }
     setConfirmCreate(true);
   };
 
-  const confirmAddGroup = () => {
-    setGroups(p => [...p, { id: Date.now(), name: newName.trim(), color: newColor, members: [userName], createdBy: userName }]);
+  const confirmAddGroup = async () => {
+    const gId = `g_${userName}_${Date.now()}`;
+    const trimmed = newName.trim();
+    // Save to Supabase
+    await sb.from("taskya_groups").insert({ id: gId, name: trimmed, color: newColor, created_by: userName, is_default: false });
+    await sb.from("taskya_group_members").insert({ group_id: gId, username: userName });
+    const newGroup = { id: gId, name: trimmed, color: newColor, members: [userName], createdBy: userName, isDefault: false };
+    setGroups(p => [...p, newGroup]);
     setNewName(""); setShowForm(false); setConfirmCreate(false);
     showInviteToast("Group created", "green");
   };
 
-  const deleteGroup = (gid) => {
+  const deleteGroup = async (gid) => {
+    await sb.from("taskya_group_members").delete({ group_id: gid });
+    await sb.from("taskya_groups").delete({ id: gid });
     setGroups(p => p.filter(g => g.id !== gid));
     setConfirmDeleteId(null);
     showInviteToast("Group deleted", "red");
   };
 
-  const sendInvite = (gid) => {
+  const sendInvite = async (gid) => {
     const target = (memberInput[gid] || "").trim().toLowerCase();
     if (!target) return;
     if (!/^[a-z][a-z0-9._]*$/.test(target)) { showInviteToast("Invalid username format", "red"); return; }
     if (target === userName) { showInviteToast("You can't invite yourself", "red"); return; }
-    if (!users[target]) { showInviteToast(`User "${target}" is not registered`, "red"); return; }
+    // Check if user exists in Supabase (cross-device!)
+    const { data: targetUsers } = await sb.from("taskya_users").selectWhere("*", { username: target });
+    if (!targetUsers || targetUsers.length === 0) { showInviteToast(`User "${target}" is not registered`, "red"); return; }
     const group = groups.find(g => g.id === gid);
     if (group?.isDefault) { showInviteToast("Can't invite others to your default group", "red"); return; }
     if (group?.members?.includes(target)) { showInviteToast(`${target} is already a member`, "red"); return; }
     if (invitations.some(inv => inv.to === target && inv.groupId === gid && inv.status === "pending")) {
       showInviteToast(`Invite already sent to ${target}`, "red"); return;
     }
-    setInvitations(p => [...p, {
-      id: Date.now(), from: userName, to: target,
-      groupId: gid, groupName: group?.name, status: "pending",
-    }]);
+    const invId = `inv_${Date.now()}`;
+    // Save invitation to Supabase so target user sees it on their device
+    await sb.from("taskya_invitations").insert({
+      id: invId, group_id: gid, group_name: group?.name,
+      from_user: userName, to_user: target, status: "pending"
+    });
+    setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: group?.name, status: "pending" }]);
     setMemberInput(p => ({ ...p, [gid]: "" }));
     showInviteToast(`Invite sent to ${target}`, "green");
   };
 
-  const acceptInvite = (invId) => {
+  const acceptInvite = async (invId) => {
     const inv = invitations.find(i => i.id === invId);
     if (!inv) return;
-    setGroups(p => p.map(g => g.id === inv.groupId ? { ...g, members: [...g.members, inv.to] } : g));
+    // Add member to group in Supabase
+    await sb.from("taskya_group_members").insert({ group_id: inv.groupId, username: userName });
+    await sb.from("taskya_invitations").update({ status: "accepted" }, { id: invId });
     setInvitations(p => p.map(i => i.id === invId ? { ...i, status: "accepted" } : i));
+    // Reload to get the new group
+    if (reloadData) reloadData();
     showInviteToast(`Joined ${inv.groupName}`, "green");
   };
 
-  const rejectInvite = (invId) => {
+  const rejectInvite = async (invId) => {
+    await sb.from("taskya_invitations").update({ status: "rejected" }, { id: invId });
     setInvitations(p => p.map(i => i.id === invId ? { ...i, status: "rejected" } : i));
     showInviteToast("Invitation declined", "red");
   };
@@ -1702,9 +1948,10 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     setGroups(p => p.map(g => g.id === gid ? { ...g, members: g.members.filter((_, i) => i !== idx) } : g));
   };
 
-  const confirmRemoveUserFromGroup = () => {
+  const confirmRemoveUserFromGroup = async () => {
     if (!confirmRemoveMember) return;
     const { groupId, memberName } = confirmRemoveMember;
+    await sb.from("taskya_group_members").delete({ group_id: groupId, username: memberName });
     setGroups(p => p.map(g => g.id === groupId ? { ...g, members: g.members.filter(m => m !== memberName) } : g));
     showInviteToast(`${memberName} removed from group`, "red");
     setConfirmRemoveMember(null);
@@ -1712,7 +1959,6 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
 
   const myPendingInvites = invitations.filter(inv => inv.to === userName && inv.status === "pending");
   const sentPending = (gid) => invitations.filter(inv => inv.groupId === gid && inv.status === "pending");
-  // groups where current user received an invite (accepted or pending)
   const invitedGroups = invitations.filter(inv => inv.to === userName && (inv.status === "accepted" || inv.status === "pending"));
   const invitedGroupIds = new Set(invitedGroups.map(inv => inv.groupId));
 
@@ -1726,7 +1972,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     <div ref={topRef} style={{ padding: "20px var(--page-px, 18px)", minHeight: "calc(100vh - 90px)", background: "var(--bg)" }}>
       <div className="fu" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/icon-192.png" alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
+          <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
           <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
             Groups<span style={{ color: "var(--accent)" }}>.</span>
           </h2>

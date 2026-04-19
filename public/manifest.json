@@ -1,0 +1,25 @@
+{
+  "name": "TASKYA - Task Manager",
+  "short_name": "TASKYA",
+  "description": "Manage your tasks, groups and stay productive",
+  "theme_color": "#D97706",
+  "background_color": "#FAF8F5",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -401,9 +401,20 @@ export default function TaskManager() {
       }
       setAllTasks(loadedTasks);
 
-      // 5. Load invitations sent to this user
-      const invRows = await dbGet("taskya_invitations", { to_user: uname });
-      setInvitations((Array.isArray(invRows) ? invRows : []).map(inv => ({
+      // 5. Load invitations — both RECEIVED (to_user=me) and SENT (from_user=me)
+      const received = await dbGet("taskya_invitations", { to_user: uname });
+      const sent = await dbGet("taskya_invitations", { from_user: uname });
+      const allInvs = [...(Array.isArray(received) ? received : []), ...(Array.isArray(sent) ? sent : [])];
+      // De-dupe by id
+      const seenIds = new Set();
+      const merged = [];
+      for (const inv of allInvs) {
+        if (!seenIds.has(inv.id)) {
+          seenIds.add(inv.id);
+          merged.push(inv);
+        }
+      }
+      setInvitations(merged.map(inv => ({
         id: inv.id, groupId: inv.group_id, groupName: inv.group_name,
         from: inv.from_user, to: inv.to_user, status: inv.status,
       })));
@@ -492,6 +503,24 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
   const nextTour = () => setTourStep(s => s + 1);
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Smoothly scroll focused inputs into view when virtual keyboard appears
+  useEffect(() => {
+    const onFocus = (e) => {
+      const el = e.target;
+      if (!el || !el.tagName) return;
+      const tag = el.tagName.toLowerCase();
+      if (tag !== "input" && tag !== "textarea" && tag !== "select") return;
+      // Delay to let keyboard start opening, then scroll element into center of visible area
+      setTimeout(() => {
+        try {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } catch {}
+      }, 280);
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
 
   // Only show tasks where the current user is a member of the task's group
   const myGroups = groups.filter(g => g.members.includes(userName));
@@ -727,61 +756,67 @@ const TOUR_STEPS = [
     page: "dashboard",
     target: null,
     title: "Welcome to TASKYA! 👋",
-    desc: "Let's take a quick tour to show you around.",
+    desc: "A quick 10-step tour so you know where everything is.",
   },
   {
     page: "dashboard",
     target: "upcoming-spotlight",
-    title: "Upcoming Task",
-    desc: "Your next due task appears here. Swipe to see more.",
+    title: "Next Due Task",
+    desc: "Your most urgent task sits here. Swipe to flip through others.",
   },
   {
     page: "dashboard",
     target: "dashboard-stats",
-    title: "Your Stats",
-    desc: "Track completed and pending tasks. Tap a card to view tasks.",
+    title: "Progress at a Glance",
+    desc: "Completed and pending counts. Tap a card to open the task list.",
+  },
+  {
+    page: "dashboard",
+    target: "home-groups",
+    title: "Your Groups",
+    desc: "See all your groups and their progress. Tap any row to open Groups.",
   },
   {
     page: "dashboard",
     target: "nav-tasks",
     title: "Tasks Tab",
-    desc: "Tap here to view and manage all your tasks.",
+    desc: "Jump here anytime to view, add, or manage tasks.",
   },
   {
     page: "tasks",
     target: "tasks-tabs",
-    title: "Task Views",
-    desc: "Switch between View, Add, and Missed tasks.",
+    title: "View · Add · Missed",
+    desc: "Three tabs: browse tasks, create new ones, or review what you missed.",
   },
   {
     page: "tasks",
     target: "time-filters",
-    title: "Filter by Time",
-    desc: "Filter tasks by Daily, Weekly, Monthly or Quarterly.",
+    title: "Time Filters",
+    desc: "Narrow tasks down to daily, weekly, monthly, or quarterly.",
   },
   {
     page: "tasks",
     target: "tab-add",
-    title: "Add Tasks",
-    desc: "Tap Add to create new tasks with priority and due dates.",
+    title: "Create a Task",
+    desc: "Tap Add — set title, group, priority, and due date.",
   },
   {
     page: "tasks",
     target: "nav-groups",
     title: "Groups Tab",
-    desc: "Next, let's see how groups work.",
+    desc: "Collaborate with others — invite members and share tasks.",
   },
   {
     page: "groups",
     target: "fab-group",
-    title: "Create Groups",
-    desc: "Tap + to create a group and invite members by username.",
+    title: "Create a Group",
+    desc: "Tap + to make a group. Invite members by their username.",
   },
   {
     page: "dashboard",
     target: null,
     title: "You're all set! 🎉",
-    desc: "Start by creating your first task. Enjoy TASKYA!",
+    desc: "Create your first task and you're off. Enjoy TASKYA!",
   },
 ];
 
@@ -1207,7 +1242,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
       </div>
 
       {/* groups overview */}
-      <div className="fu" style={{ animationDelay: "0.3s" }}>
+      <div data-tour="home-groups" className="fu" style={{ animationDelay: "0.3s" }}>
         <SectionHeader title="Groups" />
         {groups.length === 0 ? (
           <EmptyMsg msg="No groups yet" />
@@ -1505,6 +1540,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
+  const [showRescheduleConfirm, setShowRescheduleConfirm] = useState(false);
   const [newDueDate, setNewDueDate] = useState(task.dueDate || "");
   const [newDueTime, setNewDueTime] = useState(task.dueTime || "");
 
@@ -1527,8 +1563,14 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
 
   const handleReschedule = () => {
     if (!newDueDate) return;
-    dispatch({ type: "UPDATE_DUE", id: task.id, dueDate: newDueDate, dueTime: newDueTime || null });
+    // Close the form and open confirmation
     setShowReschedule(false);
+    setShowRescheduleConfirm(true);
+  };
+
+  const confirmReschedule = () => {
+    dispatch({ type: "UPDATE_DUE", id: task.id, dueDate: newDueDate, dueTime: newDueTime || null });
+    setShowRescheduleConfirm(false);
     showToast("Task rescheduled", "green");
   };
 
@@ -1676,14 +1718,30 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {/* complete/uncomplete confirmation */}
       {showCompleteConfirm && (
         <ConfirmPopup
-          title={isDone ? "Mark as pending" : isMissed ? "Mark as completed" : "Mark as completed"}
+          title={isDone ? "Mark as pending" : "Mark as completed"}
           message={isDone
             ? `Move "${task.title}" back to pending?`
             : `Mark "${task.title}" as completed?`}
           confirmLabel={isDone ? "Undo" : "Complete"}
           confirmColor={isDone ? "var(--accent)" : "var(--green)"}
-          onConfirm={() => { dispatch({ type: "TOGGLE_STATUS", id: task.id }); setShowCompleteConfirm(false); }}
+          onConfirm={() => {
+            dispatch({ type: "TOGGLE_STATUS", id: task.id });
+            setShowCompleteConfirm(false);
+            showToast(isDone ? "Task reopened" : "Task completed", isDone ? "amber" : "green");
+          }}
           onCancel={() => setShowCompleteConfirm(false)}
+        />
+      )}
+
+      {/* reschedule confirmation popup */}
+      {showRescheduleConfirm && (
+        <ConfirmPopup
+          title="Reschedule task"
+          message={`Reschedule "${task.title}" to ${newDueDate}${newDueTime ? ` at ${newDueTime}` : ""}?`}
+          confirmLabel="Reschedule"
+          confirmColor="#F97316"
+          onConfirm={confirmReschedule}
+          onCancel={() => setShowRescheduleConfirm(false)}
         />
       )}
 
@@ -1916,15 +1974,22 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     return Object.keys(e).length === 0;
   };
 
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+
   const submit = () => {
     if (!validate()) return;
+    setShowCreateConfirm(true);
+  };
+
+  const confirmCreate = () => {
     const selectedGroup = groups.find(g => g.name === form.group);
     dispatch({ type: "ADD_TASK", payload: { ...form, groupId: selectedGroup?.id, title: form.title.trim(), status: "pending", dueDate: form.dueDate || null, dueTime: form.dueTime || null } });
-    showToast("Task added successfully", "green");
+    showToast("Task created successfully", "green");
     const resetTime = defaultTime || "daily";
     setForm({ title: "", desc: "", group: groups[0]?.name || "", time: resetTime, priority: "medium", dueDate: isNoDue ? "" : getDefaultDue(resetTime), dueTime: isNoDue ? "" : "23:59" });
     setErrors({});
     setDueDateManual(false);
+    setShowCreateConfirm(false);
   };
 
   const fld = {
@@ -1932,6 +1997,7 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
     background: "var(--bg)", color: "var(--text)", outline: "none",
     transition: "border-color 0.15s ease", WebkitAppearance: "none",
+    boxSizing: "border-box",
   };
   const fldErr = { ...fld, borderColor: "var(--red)" };
   const lbl = { fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 5, display: "flex", alignItems: "center", gap: 4, textTransform: "uppercase", letterSpacing: "0.07em" };
@@ -1942,10 +2008,11 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
   const errStyle = { fontSize: 10, color: "var(--red)", marginTop: 4, fontWeight: 500 };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 260px)" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 260px)", width: "100%" }}>
     <div className="si" style={{
       background: "var(--bg-card)", borderRadius: "var(--r)", padding: 20,
       border: "1px solid var(--border)", boxShadow: "var(--shm)",
+      width: "100%", boxSizing: "border-box",
     }}>
       <h3 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 20, fontWeight: 400, marginBottom: 18 }}>
         New task
@@ -2167,6 +2234,18 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         </button>
       </div>
     </div>
+
+    {/* create task confirmation */}
+    {showCreateConfirm && (
+      <ConfirmPopup
+        title="Create task"
+        message={`Create "${form.title.trim()}" in ${form.group}${form.dueDate ? ` due ${form.dueDate}${form.dueTime ? ` at ${form.dueTime}` : ""}` : ""}?`}
+        confirmLabel="Create"
+        confirmColor="var(--green)"
+        onConfirm={confirmCreate}
+        onCancel={() => setShowCreateConfirm(false)}
+      />
+    )}
     </div>
   );
 }
@@ -2228,6 +2307,8 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     showInviteToast("Group deleted", "red");
   };
 
+  const [confirmInvite, setConfirmInvite] = useState(null); // { gid, target }
+
   const sendInvite = async (gid) => {
     const target = (memberInput[gid] || "").trim().toLowerCase();
     if (!target) return;
@@ -2246,10 +2327,18 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
       return;
     }
 
+    // All validations passed — show confirmation before sending
+    setConfirmInvite({ gid, target, groupName: group?.name });
+  };
+
+  const confirmSendInvite = async () => {
+    if (!confirmInvite) return;
+    const { gid, target, groupName } = confirmInvite;
     const invId = `inv_${Date.now()}`;
-    await dbInsert("taskya_invitations", { id: invId, group_id: gid, group_name: group?.name, from_user: userName, to_user: target, status: "pending" });
-    setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: group?.name, status: "pending" }]);
+    await dbInsert("taskya_invitations", { id: invId, group_id: gid, group_name: groupName, from_user: userName, to_user: target, status: "pending" });
+    setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: groupName, status: "pending" }]);
     setMemberInput(p => ({ ...p, [gid]: "" }));
+    setConfirmInvite(null);
     showInviteToast(`Invite sent to ${target} ✓`, "green");
   };
 
@@ -2524,6 +2613,19 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
           confirmColor="var(--red)"
           onConfirm={confirmRemoveUserFromGroup}
           onCancel={() => setConfirmRemoveMember(null)}
+        />
+      )}
+
+      {/* send invite confirmation */}
+      {confirmInvite && (
+        <ConfirmPopup
+          size="sm"
+          title="Send invite"
+          message={`Send invite to "${confirmInvite.target}" for group "${confirmInvite.groupName}"?`}
+          confirmLabel="Send"
+          confirmColor="var(--blue)"
+          onConfirm={confirmSendInvite}
+          onCancel={() => setConfirmInvite(null)}
         />
       )}
 

@@ -527,9 +527,10 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       case "AUTO_MISS": {
         setAllTasks(prev => prev.map(t => {
           if (t.status !== "pending" || !t.dueDate) return t;
-          const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59")).getTime();
+          // When no time given, treat due as end of that day
+          const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59:59")).getTime();
           if (due < nowTs) {
-            const activity = [...(t.activity || []), { type: "missed", by: "system", at: nowTs }];
+            const activity = [...(t.activity || []), { type: "missed", by: "Taskya", at: nowTs }];
             dbUpdate("taskya_tasks", { status: "missed", activity }, { id: t.id });
             return { ...t, status: "missed", activity };
           }
@@ -1224,7 +1225,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
   const taskOwner = task.createdBy;
   const taskGroup = groups?.find(g => g.id === task.groupId || g.name === task.group);
   const groupOwner = taskGroup?.createdBy;
-  const canDelete = userName === taskOwner || userName === groupOwner;
+  const canDelete = (userName === taskOwner || userName === groupOwner) && !isDone;
   const isOwner = userName === taskOwner;
   // group task = group has more than 1 member (shared group)
   const isGroupTask = taskGroup && taskGroup.members?.length > 1;
@@ -1294,11 +1295,14 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                   textTransform: "uppercase", letterSpacing: "0.04em",
                 }}>Rescheduled</span>
               )}
-              {task.delayed && isDone && (() => {
-                const dueStr = task.dueDate + (task.dueTime ? "T" + task.dueTime : "T23:59");
+              {task.delayed && isDone && task.dueDate && (() => {
+                // If no dueTime was set, treat due as end of day (23:59:59)
+                const dueStr = task.dueDate + (task.dueTime ? "T" + task.dueTime : "T23:59:59");
                 const due = new Date(dueStr);
                 const completed = new Date(task.completedAt);
                 const diffMs = completed - due;
+                // If completed before or at end of day (when no time was set), don't show delayed
+                if (diffMs <= 0) return null;
                 const diffMins = Math.floor(diffMs / 60000);
                 const diffHrs = Math.floor(diffMins / 60);
                 const diffDays = Math.floor(diffHrs / 24);
@@ -1376,50 +1380,64 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {showReschedule && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(28,25,23,0.12)",
-          
+          background: "rgba(28,25,23,0.35)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 200, padding: 24,
+          zIndex: 200, padding: 20,
         }} onClick={() => setShowReschedule(false)}>
           <div className="si" style={{
-            background: "var(--bg-card)", borderRadius: "var(--r)", padding: 24,
-            maxWidth: "90%", width: "100%", boxShadow: "0 12px 40px rgba(28,25,23,0.15)",
+            background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
+            maxWidth: 440, width: "calc(100% - 40px)", boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
           }} onClick={e => e.stopPropagation()}>
             <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Reschedule task</h4>
-            <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 14 }}>Set a new due date for "{task.title}"</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+            <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 16 }}>Set a new due date for "{task.title}"</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
               <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   New Due Date
                 </label>
                 <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} style={{
-                  width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
-                  borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
-                  background: "var(--bg)", color: "var(--text)", outline: "none",
-                }} />
+                  width: "100%", padding: "12px 14px", border: "1.5px solid var(--border)",
+                  borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
+                  background: "var(--bg-card)", color: "var(--text)", outline: "none",
+                  boxSizing: "border-box", appearance: "none", WebkitAppearance: "none",
+                  minHeight: 44,
+                }}
+                onFocus={e => e.target.style.borderColor = "var(--accent)"}
+                onBlur={e => e.target.style.borderColor = "var(--border)"}
+                />
               </div>
               <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-                  New Due Time
+                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  New Due Time (optional)
                 </label>
                 <input type="time" value={newDueTime} onChange={e => setNewDueTime(e.target.value)} style={{
-                  width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
-                  borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
-                  background: "var(--bg)", color: "var(--text)", outline: "none",
-                }} />
+                  width: "100%", padding: "12px 14px", border: "1.5px solid var(--border)",
+                  borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
+                  background: "var(--bg-card)", color: "var(--text)", outline: "none",
+                  boxSizing: "border-box", appearance: "none", WebkitAppearance: "none",
+                  minHeight: 44,
+                }}
+                onFocus={e => e.target.style.borderColor = "var(--accent)"}
+                onBlur={e => e.target.style.borderColor = "var(--border)"}
+                />
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setShowReschedule(false)} style={{
-                padding: "8px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+                padding: "9px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
                 background: "var(--bg)", color: "var(--text2)", fontSize: 12, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
               }}>Cancel</button>
-              <button onClick={handleReschedule} style={{
-                padding: "8px 18px", border: "none", borderRadius: "var(--rs)",
-                background: "var(--accent)", color: "white", fontSize: 12, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit", opacity: newDueDate ? 1 : 0.5,
-              }}>Reschedule</button>
+              <button onClick={handleReschedule} disabled={!newDueDate} style={{
+                padding: "9px 18px", border: "none", borderRadius: "var(--rs)",
+                background: "#F97316", color: "white", fontSize: 12, fontWeight: 600,
+                cursor: newDueDate ? "pointer" : "not-allowed", fontFamily: "inherit",
+                opacity: newDueDate ? 1 : 0.5,
+                transition: "opacity 0.15s ease, background 0.15s ease",
+              }}
+              onMouseEnter={e => { if (newDueDate) e.target.style.background = "#EA580C"; }}
+              onMouseLeave={e => { if (newDueDate) e.target.style.background = "#F97316"; }}
+              >Reschedule</button>
             </div>
           </div>
         </div>
@@ -1468,7 +1486,7 @@ function ActivityTimeline({ activity }) {
               border: `2px solid var(--bg)`,
             }}>{cfg.icon}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>
-              {cfg.label} <span style={{ color: cfg.color }}>{a.by === "system" ? "system" : a.by}</span>
+              {cfg.label} <span style={{ color: cfg.color }}>{(a.by === "system" || a.by === "Taskya") ? "Taskya" : a.by}</span>
             </div>
             <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 4 }}>{fmtDateTime(a.at)}</div>
             {a.type === "rescheduled" && a.dueDate && (
@@ -1484,18 +1502,17 @@ function ActivityTimeline({ activity }) {
 }
 
 function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, onCancel, size }) {
-  const maxW = size === "sm" ? 280 : "90%";
+  const maxW = size === "sm" ? 320 : 440;
   return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "rgba(28,25,23,0.12)",
-      
+      background: "rgba(28,25,23,0.35)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 200, padding: 24,
+      zIndex: 200, padding: 20,
     }} onClick={onCancel}>
       <div className="si" style={{
-        background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 24,
-        maxWidth: maxW, width: "100%", boxShadow: "0 12px 40px rgba(28,25,23,0.15)",
+        background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 22,
+        maxWidth: maxW, width: "calc(100% - 40px)", boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
       }} onClick={e => e.stopPropagation()}>
         <h4 style={{ fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6 }}>{title}</h4>
         <p style={{ fontSize: size === "sm" ? 12 : 13, color: "var(--text2)", lineHeight: 1.5, marginBottom: size === "sm" ? 14 : 20 }}>{message}</p>

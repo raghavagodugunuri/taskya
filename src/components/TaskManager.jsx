@@ -1910,9 +1910,14 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     const group = groups.find(g => g.id === gid);
     if (group?.isDefault) { showInviteToast("Can't invite others to your default group", "red"); return; }
     if (group?.members?.includes(target)) { showInviteToast(`${target} is already a member`, "red"); return; }
-    if (invitations.some(inv => inv.to === target && inv.groupId === gid && inv.status === "pending")) {
-      showInviteToast(`Invite already sent to ${target}`, "red"); return;
+
+    // Check Supabase directly for any existing pending invite (not just local state)
+    const existingInvites = await dbGet("taskya_invitations", { to_user: target, group_id: gid, status: "pending" });
+    if (Array.isArray(existingInvites) && existingInvites.length > 0) {
+      showInviteToast(`Invite already pending for ${target}`, "red");
+      return;
     }
+
     const invId = `inv_${Date.now()}`;
     await dbInsert("taskya_invitations", { id: invId, group_id: gid, group_name: group?.name, from_user: userName, to_user: target, status: "pending" });
     setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: group?.name, status: "pending" }]);

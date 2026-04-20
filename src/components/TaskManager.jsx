@@ -204,6 +204,12 @@ function LoginPage({ onLogin }) {
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
+        :root { color-scheme: light only; }
+        html, body {
+          background: #FAF8F5 !important;
+          color: #1C1917 !important;
+          color-scheme: light only !important;
+        }
         :root {
           --bg:#FAF8F5;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
           --text-inv:#FAF8F5;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
@@ -301,15 +307,15 @@ function LoginPage({ onLogin }) {
         )}
 
         <button onClick={handleLogin} disabled={loading} style={{
-          padding: "14px", background: loading ? "var(--text2)" : "var(--bg-dark)", color: "var(--text-inv)",
+          padding: "14px", background: loading ? "var(--text2)" : "#1E40AF", color: "white",
           border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600,
           cursor: loading ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", width: "100%",
-          marginTop: 4, transition: "opacity 0.15s ease",
-          boxShadow: "0 4px 16px rgba(28,25,23,0.12)",
+          marginTop: 4, transition: "background 0.15s ease",
+          boxShadow: "0 4px 16px rgba(30,64,175,0.25)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}
-        onMouseEnter={e => { if (!loading) e.target.style.opacity = "0.88"; }}
-        onMouseLeave={e => e.target.style.opacity = "1"}
+        onMouseEnter={e => { if (!loading) e.target.style.background = "#1E3A8A"; }}
+        onMouseLeave={e => { if (!loading) e.target.style.background = "#1E40AF"; }}
         >
           {loading && (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}>
@@ -502,7 +508,20 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
   };
   const nextTour = () => setTourStep(s => s + 1);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    // Force light mode on the document (in case browser/OS is in dark mode)
+    let meta = document.querySelector('meta[name="color-scheme"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "color-scheme";
+      document.head.appendChild(meta);
+    }
+    meta.content = "light";
+    document.documentElement.style.colorScheme = "light";
+    document.body.style.background = "#FAF8F5";
+    document.body.style.color = "#1C1917";
+  }, []);
 
   // Smoothly scroll focused inputs into view when virtual keyboard appears
   useEffect(() => {
@@ -623,6 +642,12 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
+        :root { color-scheme: light only; }
+        html, body {
+          background: #FAF8F5 !important;
+          color: #1C1917 !important;
+          color-scheme: light only !important;
+        }
         :root {
           --bg:#FAF8F5;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
           --text-inv:#FAF8F5;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
@@ -1028,7 +1053,7 @@ function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
             flex: isFirst ? "none" : 1,
             width: isFirst ? "100%" : "auto",
             padding: "10px 18px", border: "none", borderRadius: 9,
-            background: "#2563EB", color: "white", fontSize: 12.5, fontWeight: 600,
+            background: "#1E40AF", color: "white", fontSize: 12.5, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}>
@@ -1037,6 +1062,14 @@ function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             )}
           </button>
+          {isFirst && (
+            <button onClick={onEnd} style={{
+              width: "100%", padding: "10px", border: "none", borderRadius: 9,
+              background: "transparent", color: "var(--text2)",
+              fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
+              textDecoration: "underline", marginTop: -2,
+            }}>Hide tour — don't show again</button>
+          )}
         </div>
 
         <p style={{
@@ -1541,8 +1574,55 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
   const [showRescheduleConfirm, setShowRescheduleConfirm] = useState(false);
-  const [newDueDate, setNewDueDate] = useState(task.dueDate || "");
-  const [newDueTime, setNewDueTime] = useState(task.dueTime || "");
+
+  // Compute default date/time when reschedule opens (based on task type)
+  const computeRescheduleDefaults = () => {
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const fmtTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const now = new Date();
+
+    // If task already has a due date/time, use that
+    if (task.dueDate) {
+      return { date: task.dueDate, time: task.dueTime || "" };
+    }
+
+    // Task type-based defaults for anytime tasks
+    switch (task.time) {
+      case "daily":
+        return { date: fmtDate(now), time: "23:59" };
+      case "weekly": {
+        const d = new Date(now);
+        d.setDate(now.getDate() + (7 - now.getDay()));
+        return { date: fmtDate(d), time: "23:59" };
+      }
+      case "monthly": {
+        const d = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return { date: fmtDate(d), time: "23:59" };
+      }
+      case "quarterly": {
+        const quarter = Math.floor(now.getMonth() / 3);
+        const d = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
+        return { date: fmtDate(d), time: "23:59" };
+      }
+      default:
+        // "anytime" or unspecified — use current date/time
+        return { date: fmtDate(now), time: fmtTime(now) };
+    }
+  };
+
+  const defaults = computeRescheduleDefaults();
+  const [newDueDate, setNewDueDate] = useState(defaults.date);
+  const [newDueTime, setNewDueTime] = useState(defaults.time);
+
+  // Refresh defaults when the reschedule popup opens
+  useEffect(() => {
+    if (showReschedule) {
+      const d = computeRescheduleDefaults();
+      setNewDueDate(d.date);
+      setNewDueTime(d.time);
+    }
+  }, [showReschedule]);
 
   const isMissed = task.status === "missed";
   const isDone = task.status === "completed";
@@ -1855,7 +1935,7 @@ function ActivityTimeline({ activity }) {
               border: `2px solid var(--bg)`,
             }}>{cfg.icon}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>
-              {cfg.label} <span style={{ color: cfg.color }}>{(a.by === "system" || a.by === "Taskya") ? "Taskya" : a.by}</span>
+              {cfg.label} <span style={{ color: cfg.color }}>{(a.by === "system" || a.by === "Taskya") ? "by Taskya" : a.by}</span>
             </div>
             <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 4 }}>{fmtDateTime(a.at)}</div>
             {a.type === "rescheduled" && a.dueDate && (
@@ -2223,13 +2303,13 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
           </div>
         )}
         <button onClick={submit} style={{
-          padding: "13px", background: "var(--bg-dark)", color: "var(--text-inv)",
+          padding: "13px", background: "#1E40AF", color: "white",
           border: "none", borderRadius: "var(--rs)", fontSize: 14, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit", width: "100%", marginTop: 2,
-          transition: "opacity 0.15s ease",
+          transition: "background 0.15s ease",
         }}
-        onMouseEnter={e => e.target.style.opacity="0.88"}
-        onMouseLeave={e => e.target.style.opacity="1"}>
+        onMouseEnter={e => e.target.style.background="#1E3A8A"}
+        onMouseLeave={e => e.target.style.background="#1E40AF"}>
           Create Task
         </button>
       </div>
@@ -2308,6 +2388,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   };
 
   const [confirmInvite, setConfirmInvite] = useState(null); // { gid, target }
+  const [membersPopup, setMembersPopup] = useState(null); // group object when open
 
   const sendInvite = async (gid) => {
     const target = (memberInput[gid] || "").trim().toLowerCase();
@@ -2451,10 +2532,14 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
             ))}
           </div>
           <button onClick={addGroup} style={{
-            padding: "10px", background: "var(--bg-dark)", color: "var(--text-inv)",
+            padding: "10px", background: "#1E40AF", color: "white",
             border: "none", borderRadius: "var(--rs)", fontSize: 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit", width: "100%",
-          }}>Create Group</button>
+            transition: "background 0.15s ease",
+          }}
+          onMouseEnter={e => e.target.style.background = "#1E3A8A"}
+          onMouseLeave={e => e.target.style.background = "#1E40AF"}
+          >Create Group</button>
         </div>
       )}
 
@@ -2506,35 +2591,24 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                     <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 3 }}>{gd}/{gt.length} completed</div>
                   </div>
 
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Members</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
-                    {g.members.filter(m => m !== userName).length === 0 && <span style={{ fontSize: 11, color: "var(--text2)", fontStyle: "italic" }}>No other members</span>}
-                    {g.members.filter(m => m !== userName).map((m, j) => {
-                      // Can only remove a member if I am the creator OR the member is not the creator
-                      const canRemove = isCreator && m !== g.createdBy;
-                      return (
-                        <div key={j} style={{
-                          display: "flex", alignItems: "center", gap: 5,
-                          padding: canRemove ? "3px 8px 3px 3px" : "3px 10px 3px 3px", borderRadius: 100,
-                          background: "var(--bg)", border: "1px solid var(--border)", fontSize: 11,
-                        }}>
-                          <div style={{
-                            width: 20, height: 20, borderRadius: "50%", background: g.color, opacity: 0.8,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 8, fontWeight: 700, color: "white",
-                          }}>{m[0]}</div>
-                          {m}
-                          {m === g.createdBy && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", marginLeft: 2 }}>owner</span>}
-                          {canRemove && (
-                            <button onClick={() => setConfirmRemoveMember({ groupId: g.id, memberName: m, groupName: g.name })} style={{
-                              background: "none", border: "none", color: "var(--text2)", cursor: "pointer",
-                              fontSize: 13, padding: 0, marginLeft: 1, lineHeight: 1,
-                            }}>×</button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {/* Members button — opens popup */}
+                  <button onClick={() => setMembersPopup(g)} style={{
+                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                    padding: "9px 12px", border: "1px solid var(--border)",
+                    borderRadius: "var(--rs)", background: "var(--bg)",
+                    fontSize: 12, fontWeight: 600, color: "var(--text)",
+                    cursor: "pointer", fontFamily: "inherit",
+                    transition: "background 0.15s ease", marginBottom: 6,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#F0ECE6"}
+                  onMouseLeave={e => e.currentTarget.style.background = "var(--bg)"}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>Members ({g.members.length})</span>
+                    <svg style={{ marginLeft: "auto" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
 
                   {/* pending invites for this group */}
                   {pendingSent.length > 0 && (
@@ -2629,21 +2703,109 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
         />
       )}
 
+      {/* Members popup — shows all members with option to remove (admin only) */}
+      {membersPopup && (() => {
+        const g = groups.find(grp => grp.id === membersPopup.id) || membersPopup;
+        const isCreator = g.createdBy === userName;
+        return (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(28,25,23,0.35)", zIndex: 200, padding: 20,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }} onClick={() => setMembersPopup(null)}>
+            <div className="si" style={{
+              background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
+              width: "calc(100% - 40px)", maxWidth: 440,
+              boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
+              maxHeight: "80vh", overflowY: "auto",
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <h4 style={{ fontSize: 17, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: g.color }} />
+                  {g.name}
+                </h4>
+                <button onClick={() => setMembersPopup(null)} style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--text2)", padding: 4, display: "flex",
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              <p style={{ fontSize: 11, color: "var(--text2)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>
+                {g.members.length} {g.members.length === 1 ? "Member" : "Members"}
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {g.members.map((m, idx) => {
+                  const isOwner = m === g.createdBy;
+                  const isMe = m === userName;
+                  const canRemove = isCreator && !isOwner && !isMe;
+                  return (
+                    <div key={idx} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 12px", borderRadius: "var(--rs)",
+                      background: "var(--bg)", border: "1px solid var(--border)",
+                    }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: "50%",
+                        background: g.color, color: "white",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 14, fontWeight: 700, flexShrink: 0,
+                      }}>{m[0]?.toUpperCase()}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m} {isMe && <span style={{ fontSize: 10, color: "var(--text2)", fontWeight: 500 }}>(you)</span>}
+                        </div>
+                        <div style={{ fontSize: 10, color: isOwner ? "var(--accent)" : "var(--text2)", fontWeight: isOwner ? 700 : 500, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>
+                          {isOwner ? "Owner / Admin" : "Member"}
+                        </div>
+                      </div>
+                      {canRemove && (
+                        <button onClick={() => {
+                          setMembersPopup(null);
+                          setConfirmRemoveMember({ groupId: g.id, memberName: m, groupName: g.name });
+                        }} style={{
+                          padding: "6px 12px", border: "1px solid var(--red)",
+                          borderRadius: "var(--rs)", background: "transparent",
+                          color: "var(--red)", fontSize: 11, fontWeight: 600,
+                          cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+                          transition: "background 0.15s ease",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--red)"; e.currentTarget.style.color = "white"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--red)"; }}
+                        >Remove</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!isCreator && (
+                <p style={{ fontSize: 10.5, color: "var(--text2)", textAlign: "center", marginTop: 14, fontStyle: "italic" }}>
+                  Only the group owner can remove members
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {inviteToast && <Toast message={inviteToast.message} type={inviteToast.type} />}
 
       {/* floating action button - add group */}
       <button onClick={toggleForm} data-tour="fab-group" className="fab-group" style={{
         position: "fixed", bottom: `calc(80px + env(safe-area-inset-bottom, 0px))`,
         width: 52, height: 52, borderRadius: "50%", border: "none",
-        background: "var(--bg-dark)", color: "var(--text-inv)",
+        background: "#1E40AF", color: "white",
         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 6px 20px rgba(28,25,23,0.25)",
+        boxShadow: "0 6px 20px rgba(30,64,175,0.35)",
         transition: "transform 0.25s ease, box-shadow 0.15s ease",
         transform: showForm ? "rotate(45deg) scale(1.05)" : "rotate(0) scale(1)",
         zIndex: 90,
       }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(28,25,23,0.35)"}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 20px rgba(28,25,23,0.25)"}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(30,64,175,0.45)"}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 20px rgba(30,64,175,0.35)"}
       >{I.plus}</button>
     </div>
   );
@@ -2810,7 +2972,11 @@ function EmptyState({ msg }) {
 }
 
 function Toast({ message, type }) {
-  const bg = type === "green" ? "var(--green)" : type === "red" ? "var(--red)" : "var(--bg-dark)";
+  const bg = type === "green" ? "var(--green)" : type === "red" ? "var(--red)" : type === "amber" ? "var(--accent)" : "var(--bg-dark)";
+  // Only show trash icon when message is explicitly about deletion
+  const isDeleteMsg = type === "red" && /delete|deleted|removed|remove/i.test(message);
+  // Show warning/info icon for other red toasts (errors, validation, decline)
+  const isInfoMsg = type === "red" && !isDeleteMsg;
   return (
     <div style={{
       position: "fixed", top: 20, left: 0, right: 0,
@@ -2824,10 +2990,15 @@ function Toast({ message, type }) {
         animation: "fu 0.3s ease both",
         whiteSpace: "nowrap", fontFamily: "'DM Sans', sans-serif",
         display: "flex", alignItems: "center", gap: 6,
-        pointerEvents: "auto",
+        pointerEvents: "auto", maxWidth: "90vw", overflow: "hidden", textOverflow: "ellipsis",
       }}>
         {type === "green" && I.check}
-        {type === "red" && I.trash}
+        {isDeleteMsg && I.trash}
+        {isInfoMsg && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        )}
         {message}
       </div>
     </div>

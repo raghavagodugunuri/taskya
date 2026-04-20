@@ -174,7 +174,9 @@ function LoginPage({ onLogin }) {
       }
     } catch (e) {
       console.error("Auth error:", e);
-      setError("Connection error. Please try again.");
+      const msg = e?.message || String(e);
+      // Show the actual error message so we can see what Supabase returned
+      setError(msg.length > 200 ? msg.substring(0, 200) : msg);
       setLoading(false);
     }
   };
@@ -351,7 +353,6 @@ export default function TaskManager() {
 
   // Load all data from Supabase on mount / login
   const loadData = async (uname) => {
-    setLoading(true);
     try {
       // 1. Get group IDs this user belongs to
       const memberRows = await dbGet("taskya_group_members", { username: uname });
@@ -372,11 +373,17 @@ export default function TaskManager() {
       }
 
       // 4. Create "My Group" if user has no default group yet
+      // FIX: Use deterministic ID based on username only — same across all devices
       const hasDefault = loadedGroups.some(g => g.is_default && g.created_by === uname);
       if (!hasDefault) {
-        const gId = `mygroup_${uname}_${Date.now()}`;
-        await dbInsert("taskya_groups", { id: gId, name: "My Group", color: "#D97706", created_by: uname, is_default: true });
-        await dbInsert("taskya_group_members", { group_id: gId, username: uname });
+        const gId = `mygroup_${uname}`;
+        try {
+          await dbInsert("taskya_groups", { id: gId, name: "My Group", color: "#D97706", created_by: uname, is_default: true });
+          await dbInsert("taskya_group_members", { group_id: gId, username: uname });
+        } catch (e) {
+          // Group might already exist (race condition across devices) — that's OK
+          console.log("Default group exists:", e?.message);
+        }
         loadedGroups.push({ id: gId, name: "My Group", color: "#D97706", createdBy: uname, isDefault: true, is_default: true, created_by: uname, members: [uname] });
       }
       setGroups(loadedGroups);
@@ -403,12 +410,23 @@ export default function TaskManager() {
       })));
 
     } catch (e) { console.error("Load error:", e); }
-    setLoading(false);
   };
 
+  // Initial load + auto-refresh polling every 8 seconds for cross-device sync
   useEffect(() => {
-    if (loggedIn && userName) { loadData(userName); }
-    else { setLoading(false); }
+    if (loggedIn && userName) {
+      setLoading(true);
+      loadData(userName).then(() => setLoading(false));
+
+      // Poll every 8 seconds to sync tasks and invitations across devices
+      const pollInterval = setInterval(() => {
+        loadData(userName);
+      }, 8000);
+
+      return () => clearInterval(pollInterval);
+    } else {
+      setLoading(false);
+    }
   }, [loggedIn, userName]);
 
   // Persist session locally

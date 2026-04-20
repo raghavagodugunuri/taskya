@@ -354,57 +354,56 @@ export default function TaskManager() {
   // Load all data from Supabase on mount / login
   const loadData = async (uname) => {
     try {
-      // 1. Get group IDs this user belongs to
+      // 1. Ensure user has a default "My Group" — deterministic ID
+      const myGroupId = `mygroup_${uname}`;
+      try {
+        await dbInsert("taskya_groups", { id: myGroupId, name: "My Group", color: "#D97706", created_by: uname, is_default: true });
+      } catch (e) { /* already exists — fine */ }
+      try {
+        await dbInsert("taskya_group_members", { group_id: myGroupId, username: uname });
+      } catch (e) { /* already a member — fine */ }
+
+      // 2. Load user's group memberships
       const memberRows = await dbGet("taskya_group_members", { username: uname });
       const memberGroupIds = (Array.isArray(memberRows) ? memberRows : []).map(m => m.group_id);
 
+      // 3. Load each group individually (more reliable than or= queries)
       let loadedGroups = [];
-      if (memberGroupIds.length > 0) {
-        // 2. Load those groups
-        const groupsRaw = await dbGetIn("taskya_groups", "id", memberGroupIds);
-        // 3. Load members for each group
-        for (const g of (groupsRaw || [])) {
-          const gMembers = await dbGet("taskya_group_members", { group_id: g.id });
+      for (const gid of memberGroupIds) {
+        const groupArr = await dbGet("taskya_groups", { id: gid });
+        if (groupArr && groupArr.length > 0) {
+          const g = groupArr[0];
+          const gMembers = await dbGet("taskya_group_members", { group_id: gid });
           loadedGroups.push({
-            ...g, members: (gMembers || []).map(m => m.username),
-            createdBy: g.created_by, isDefault: g.is_default,
+            id: g.id, name: g.name, color: g.color,
+            createdBy: g.created_by, isDefault: g.is_default, is_default: g.is_default,
+            created_by: g.created_by,
+            members: (Array.isArray(gMembers) ? gMembers : []).map(m => m.username),
           });
         }
       }
-
-      // 4. Create "My Group" if user has no default group yet
-      // FIX: Use deterministic ID based on username only — same across all devices
-      const hasDefault = loadedGroups.some(g => g.is_default && g.created_by === uname);
-      if (!hasDefault) {
-        const gId = `mygroup_${uname}`;
-        try {
-          await dbInsert("taskya_groups", { id: gId, name: "My Group", color: "#D97706", created_by: uname, is_default: true });
-          await dbInsert("taskya_group_members", { group_id: gId, username: uname });
-        } catch (e) {
-          // Group might already exist (race condition across devices) — that's OK
-          console.log("Default group exists:", e?.message);
-        }
-        loadedGroups.push({ id: gId, name: "My Group", color: "#D97706", createdBy: uname, isDefault: true, is_default: true, created_by: uname, members: [uname] });
-      }
       setGroups(loadedGroups);
 
-      // 5. Load all tasks for user's groups
-      const allGroupIds = loadedGroups.map(g => g.id);
+      // 4. Load tasks for each group individually
       let loadedTasks = [];
-      if (allGroupIds.length > 0) {
-        const tasksRaw = await dbGetIn("taskya_tasks", "group_id", allGroupIds);
-        loadedTasks = (tasksRaw || []).map(t => ({
-          ...t, id: t.id, group: t.group_name, groupId: t.group_id,
-          createdBy: t.created_by, createdAt: t.created_at,
-          dueDate: t.due_date, dueTime: t.due_time,
-          completedAt: t.completed_at, activity: t.activity || [],
-        }));
+      for (const gid of memberGroupIds) {
+        const tasksRaw = await dbGet("taskya_tasks", { group_id: gid });
+        if (Array.isArray(tasksRaw)) {
+          for (const t of tasksRaw) {
+            loadedTasks.push({
+              ...t, id: t.id, group: t.group_name, groupId: t.group_id,
+              createdBy: t.created_by, createdAt: t.created_at,
+              dueDate: t.due_date, dueTime: t.due_time,
+              completedAt: t.completed_at, activity: t.activity || [],
+            });
+          }
+        }
       }
       setAllTasks(loadedTasks);
 
-      // 6. Load invitations sent to this user
+      // 5. Load invitations sent to this user
       const invRows = await dbGet("taskya_invitations", { to_user: uname });
-      setInvitations((invRows || []).map(inv => ({
+      setInvitations((Array.isArray(invRows) ? invRows : []).map(inv => ({
         id: inv.id, groupId: inv.group_id, groupName: inv.group_name,
         from: inv.from_user, to: inv.to_user, status: inv.status,
       })));

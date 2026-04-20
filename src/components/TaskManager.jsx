@@ -474,6 +474,22 @@ export default function TaskManager() {
 function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvitations, allTasks, setAllTasks, reloadData }) {
   const [page, setPage] = useState("dashboard");
   const [mounted, setMounted] = useState(false);
+  const [tourStep, setTourStep] = useState(null);
+
+  // Start tour on first login (checks localStorage flag per user)
+  useEffect(() => {
+    const key = `taskya_tour_seen_${userName}`;
+    const seen = localStorage.getItem(key);
+    if (!seen) {
+      setTimeout(() => setTourStep(0), 600);
+    }
+  }, [userName]);
+
+  const endTour = () => {
+    localStorage.setItem(`taskya_tour_seen_${userName}`, "1");
+    setTourStep(null);
+  };
+  const nextTour = () => setTourStep(s => s + 1);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -698,6 +714,194 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
           );
         })}
       </nav>
+
+      {tourStep !== null && <TourOverlay step={tourStep} onNext={nextTour} onEnd={endTour} setPage={setPage} currentPage={page} />}
+    </div>
+  );
+}
+
+/* ═══════════════════════ GUIDED TOUR ═══════════════════════ */
+
+const TOUR_STEPS = [
+  {
+    page: "dashboard",
+    title: "Welcome to TASKYA! 👋",
+    desc: "Let's take a quick tour to get you started. This will only take a moment.",
+    position: "center",
+  },
+  {
+    page: "dashboard",
+    title: "Your Dashboard",
+    desc: "See your task stats at a glance. Tap any card to jump to your tasks.",
+    position: "top",
+  },
+  {
+    page: "dashboard",
+    title: "Upcoming Tasks",
+    desc: "Your next due task is highlighted here. Swipe if you have multiple.",
+    position: "center",
+  },
+  {
+    page: "tasks",
+    title: "Manage Your Tasks",
+    desc: "View, create, and track all your tasks from this page.",
+    position: "top",
+  },
+  {
+    page: "tasks",
+    title: "Filter by Time",
+    desc: "Switch between All, Daily, Weekly, Monthly, and Quarterly views.",
+    position: "top",
+  },
+  {
+    page: "tasks",
+    title: "Create New Tasks",
+    desc: "Tap 'Add' to create a new task with priority, group, and due date.",
+    position: "top",
+  },
+  {
+    page: "groups",
+    title: "Groups & Collaboration",
+    desc: "Create shared groups and invite others to collaborate on tasks together.",
+    position: "top",
+  },
+  {
+    page: "groups",
+    title: "Invite Members",
+    desc: "Use the + button to create a new group and invite members by username.",
+    position: "bottom",
+  },
+  {
+    page: "dashboard",
+    title: "You're all set! 🎉",
+    desc: "Start by creating your first task. You can always access this tour again from settings.",
+    position: "center",
+  },
+];
+
+function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
+  const tour = TOUR_STEPS[step];
+  const isLast = step === TOUR_STEPS.length - 1;
+  const isFirst = step === 0;
+
+  // Auto-navigate to the right page for each step
+  useEffect(() => {
+    if (tour && tour.page !== currentPage) {
+      setPage(tour.page);
+    }
+  }, [step]);
+
+  if (!tour) return null;
+
+  const handleNext = () => {
+    if (isLast) onEnd();
+    else onNext();
+  };
+
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(28,25,23,0.55)",
+      zIndex: 1000,
+      display: "flex",
+      alignItems: tour.position === "top" ? "flex-start" : tour.position === "bottom" ? "flex-end" : "center",
+      justifyContent: "center",
+      padding: 20,
+      paddingTop: tour.position === "top" ? 100 : 20,
+      paddingBottom: tour.position === "bottom" ? 120 : 20,
+      animation: "fadeIn 0.3s ease",
+    }}>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+
+      <div style={{
+        background: "var(--bg-card)",
+        borderRadius: 16,
+        padding: 22,
+        maxWidth: 380,
+        width: "calc(100% - 40px)",
+        boxShadow: "0 20px 60px rgba(37,99,235,0.3)",
+        border: "2px solid #2563EB",
+        animation: "slideUp 0.35s ease",
+      }}>
+        {/* Step indicator */}
+        <div style={{
+          display: "flex", gap: 4, marginBottom: 16, justifyContent: "center",
+        }}>
+          {TOUR_STEPS.map((_, i) => (
+            <div key={i} style={{
+              width: i === step ? 20 : 6, height: 6, borderRadius: 3,
+              background: i === step ? "#2563EB" : i < step ? "#93C5FD" : "#DBEAFE",
+              transition: "all 0.3s ease",
+            }} />
+          ))}
+        </div>
+
+        {/* Icon */}
+        <div style={{
+          width: 44, height: 44, borderRadius: 12,
+          background: "#DBEAFE",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 14px",
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </div>
+
+        {/* Title & description */}
+        <h3 style={{
+          fontFamily: "'Instrument Serif', serif",
+          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em",
+          textAlign: "center", marginBottom: 8, color: "var(--text)",
+        }}>{tour.title}</h3>
+        <p style={{
+          fontSize: 13.5, color: "var(--text2)", textAlign: "center",
+          lineHeight: 1.5, marginBottom: 20,
+        }}>{tour.desc}</p>
+
+        {/* Buttons */}
+        <div style={{ display: "flex", gap: 10, flexDirection: isFirst ? "column" : "row" }}>
+          {!isFirst && (
+            <button onClick={onEnd} style={{
+              flex: 1, padding: "11px", border: "1.5px solid #DBEAFE",
+              borderRadius: 10, background: "white", color: "#2563EB",
+              fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+              transition: "background 0.15s ease",
+            }}
+            onMouseEnter={e => e.target.style.background = "#F0F7FF"}
+            onMouseLeave={e => e.target.style.background = "white"}
+            >Skip tour</button>
+          )}
+          <button onClick={handleNext} style={{
+            flex: isFirst ? "none" : 1,
+            width: isFirst ? "100%" : "auto",
+            padding: "11px 20px", border: "none", borderRadius: 10,
+            background: "#2563EB", color: "white", fontSize: 13, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+            transition: "background 0.15s ease",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+          onMouseEnter={e => e.target.style.background = "#1D4ED8"}
+          onMouseLeave={e => e.target.style.background = "#2563EB"}
+          >
+            {isFirst ? "Start tour" : isLast ? "Get started" : "Next"}
+            {!isLast && !isFirst && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            )}
+          </button>
+        </div>
+
+        {/* Step counter */}
+        <p style={{
+          fontSize: 11, color: "var(--text2)", textAlign: "center",
+          marginTop: 14, opacity: 0.6,
+        }}>Step {step + 1} of {TOUR_STEPS.length}</p>
+      </div>
     </div>
   );
 }

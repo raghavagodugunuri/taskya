@@ -691,7 +691,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
           const active = page === n.id;
           const pendingInvites = n.id === "groups" ? invitations.filter(inv => inv.to === userName && inv.status === "pending").length : 0;
           return (
-            <button key={n.id} onClick={() => setPage(n.id)} style={{
+            <button key={n.id} data-tour={`nav-${n.id}`} onClick={() => setPage(n.id)} style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
               padding: "6px 16px", color: active ? "var(--accent)" : "var(--text2)",
@@ -725,57 +725,63 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
 const TOUR_STEPS = [
   {
     page: "dashboard",
+    target: null,
     title: "Welcome to TASKYA! 👋",
-    desc: "Let's take a quick tour to get you started. This will only take a moment.",
-    position: "center",
+    desc: "Let's take a quick tour to show you around.",
   },
   {
     page: "dashboard",
-    title: "Your Dashboard",
-    desc: "See your task stats at a glance. Tap any card to jump to your tasks.",
-    position: "top",
+    target: "upcoming-spotlight",
+    title: "Upcoming Task",
+    desc: "Your next due task appears here. Swipe to see more.",
   },
   {
     page: "dashboard",
-    title: "Upcoming Tasks",
-    desc: "Your next due task is highlighted here. Swipe if you have multiple.",
-    position: "center",
+    target: "dashboard-stats",
+    title: "Your Stats",
+    desc: "Track completed and pending tasks. Tap a card to view tasks.",
+  },
+  {
+    page: "dashboard",
+    target: "nav-tasks",
+    title: "Tasks Tab",
+    desc: "Tap here to view and manage all your tasks.",
   },
   {
     page: "tasks",
-    title: "Manage Your Tasks",
-    desc: "View, create, and track all your tasks from this page.",
-    position: "top",
+    target: "tasks-tabs",
+    title: "Task Views",
+    desc: "Switch between View, Add, and Missed tasks.",
   },
   {
     page: "tasks",
+    target: "time-filters",
     title: "Filter by Time",
-    desc: "Switch between All, Daily, Weekly, Monthly, and Quarterly views.",
-    position: "top",
+    desc: "Filter tasks by Daily, Weekly, Monthly or Quarterly.",
   },
   {
     page: "tasks",
-    title: "Create New Tasks",
-    desc: "Tap 'Add' to create a new task with priority, group, and due date.",
-    position: "top",
+    target: "tab-add",
+    title: "Add Tasks",
+    desc: "Tap Add to create new tasks with priority and due dates.",
+  },
+  {
+    page: "tasks",
+    target: "nav-groups",
+    title: "Groups Tab",
+    desc: "Next, let's see how groups work.",
   },
   {
     page: "groups",
-    title: "Groups & Collaboration",
-    desc: "Create shared groups and invite others to collaborate on tasks together.",
-    position: "top",
-  },
-  {
-    page: "groups",
-    title: "Invite Members",
-    desc: "Use the + button to create a new group and invite members by username.",
-    position: "bottom",
+    target: "fab-group",
+    title: "Create Groups",
+    desc: "Tap + to create a group and invite members by username.",
   },
   {
     page: "dashboard",
+    target: null,
     title: "You're all set! 🎉",
-    desc: "Start by creating your first task. You can always access this tour again from settings.",
-    position: "center",
+    desc: "Start by creating your first task. Enjoy TASKYA!",
   },
 ];
 
@@ -783,6 +789,7 @@ function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
   const tour = TOUR_STEPS[step];
   const isLast = step === TOUR_STEPS.length - 1;
   const isFirst = step === 0;
+  const [targetRect, setTargetRect] = useState(null);
 
   // Auto-navigate to the right page for each step
   useEffect(() => {
@@ -791,115 +798,215 @@ function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
     }
   }, [step]);
 
+  // Locate the target element and get its position
+  useEffect(() => {
+    if (!tour || !tour.target) { setTargetRect(null); return; }
+
+    const findEl = () => {
+      const el = document.querySelector(`[data-tour="${tour.target}"]`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setTargetRect({ top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right });
+        // Scroll into view if needed
+        if (r.top < 0 || r.bottom > window.innerHeight) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      } else {
+        setTargetRect(null);
+      }
+    };
+
+    // Retry until element is available (after page switch)
+    findEl();
+    const t1 = setTimeout(findEl, 200);
+    const t2 = setTimeout(findEl, 500);
+    const onResize = () => findEl();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onResize, true);
+    return () => {
+      clearTimeout(t1); clearTimeout(t2);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onResize, true);
+    };
+  }, [step, currentPage]);
+
   if (!tour) return null;
 
-  const handleNext = () => {
-    if (isLast) onEnd();
-    else onNext();
-  };
+  const handleNext = () => { if (isLast) onEnd(); else onNext(); };
+
+  // Decide tooltip placement based on target position
+  const screenH = typeof window !== "undefined" ? window.innerHeight : 700;
+  const screenW = typeof window !== "undefined" ? window.innerWidth : 400;
+  const hasTarget = targetRect !== null;
+
+  let tipTop, tipPosition, arrowPosition;
+  if (hasTarget) {
+    const targetMidY = targetRect.top + targetRect.height / 2;
+    const spaceAbove = targetRect.top;
+    const spaceBelow = screenH - targetRect.bottom;
+
+    if (spaceBelow > 220 || spaceBelow > spaceAbove) {
+      tipPosition = "below";
+      tipTop = targetRect.bottom + 16;
+      arrowPosition = "top";
+    } else {
+      tipPosition = "above";
+      tipTop = targetRect.top - 16;
+      arrowPosition = "bottom";
+    }
+  }
+
+  // Create cutout/highlight around target
+  const highlightPadding = 6;
 
   return (
     <div style={{
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "rgba(28,25,23,0.55)",
-      zIndex: 1000,
-      display: "flex",
-      alignItems: tour.position === "top" ? "flex-start" : tour.position === "bottom" ? "flex-end" : "center",
-      justifyContent: "center",
-      padding: 20,
-      paddingTop: tour.position === "top" ? 100 : 20,
-      paddingBottom: tour.position === "bottom" ? 120 : 20,
-      animation: "fadeIn 0.3s ease",
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000,
+      pointerEvents: "auto",
     }}>
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes tourFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes tourSlideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes tourPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7), 0 0 0 4px rgba(37,99,235,0.2); }
+          50% { box-shadow: 0 0 0 8px rgba(37,99,235,0.0), 0 0 0 4px rgba(37,99,235,0.2); }
+        }
+        @keyframes tourBounce {
+          0%, 100% { transform: translate(-50%, 0); }
+          50% { transform: translate(-50%, 8px); }
+        }
+        @keyframes tourBounceUp {
+          0%, 100% { transform: translate(-50%, 0); }
+          50% { transform: translate(-50%, -8px); }
+        }
       `}</style>
 
-      <div style={{
-        background: "var(--bg-card)",
-        borderRadius: 16,
-        padding: 22,
-        maxWidth: 380,
-        width: "calc(100% - 40px)",
-        boxShadow: "0 20px 60px rgba(37,99,235,0.3)",
-        border: "2px solid #2563EB",
-        animation: "slideUp 0.35s ease",
-      }}>
-        {/* Step indicator */}
+      {/* Dark overlay with cutout around target */}
+      {hasTarget ? (
+        <svg width="100%" height="100%" style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none", animation: "tourFadeIn 0.3s ease" }}>
+          <defs>
+            <mask id="tour-mask">
+              <rect width="100%" height="100%" fill="white" />
+              <rect
+                x={targetRect.left - highlightPadding}
+                y={targetRect.top - highlightPadding}
+                width={targetRect.width + highlightPadding * 2}
+                height={targetRect.height + highlightPadding * 2}
+                rx="10"
+                fill="black"
+              />
+            </mask>
+          </defs>
+          <rect width="100%" height="100%" fill="rgba(28,25,23,0.65)" mask="url(#tour-mask)" />
+        </svg>
+      ) : (
         <div style={{
-          display: "flex", gap: 4, marginBottom: 16, justifyContent: "center",
+          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(28,25,23,0.55)", animation: "tourFadeIn 0.3s ease",
+        }} />
+      )}
+
+      {/* Highlight border around target */}
+      {hasTarget && (
+        <div style={{
+          position: "absolute",
+          top: targetRect.top - highlightPadding,
+          left: targetRect.left - highlightPadding,
+          width: targetRect.width + highlightPadding * 2,
+          height: targetRect.height + highlightPadding * 2,
+          borderRadius: 10,
+          border: "2px solid #2563EB",
+          pointerEvents: "none",
+          animation: "tourPulse 1.8s ease-in-out infinite",
+          boxSizing: "border-box",
+        }} />
+      )}
+
+      {/* Arrow pointing to target */}
+      {hasTarget && (
+        <div style={{
+          position: "absolute",
+          left: Math.min(Math.max(targetRect.left + targetRect.width / 2, 40), screenW - 40),
+          top: tipPosition === "below"
+            ? targetRect.bottom + highlightPadding + 2
+            : targetRect.top - highlightPadding - 22,
+          transform: "translate(-50%, 0)",
+          animation: tipPosition === "below" ? "tourBounce 1.2s ease-in-out infinite" : "tourBounceUp 1.2s ease-in-out infinite",
+          pointerEvents: "none",
         }}>
+          <svg width="28" height="20" viewBox="0 0 28 20" fill="none"
+            style={{ transform: tipPosition === "below" ? "rotate(0deg)" : "rotate(180deg)" }}>
+            <path d="M14 2 L14 18 M14 18 L6 10 M14 18 L22 10" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+
+      {/* Tooltip card */}
+      <div style={{
+        position: "absolute",
+        ...(hasTarget && tipPosition === "below"
+          ? { top: targetRect.bottom + 48 }
+          : hasTarget && tipPosition === "above"
+          ? { bottom: screenH - targetRect.top + 48 }
+          : { top: "50%", transform: "translateY(-50%)" }
+        ),
+        left: "50%",
+        transform: hasTarget ? "translateX(-50%)" : "translate(-50%, -50%)",
+        width: "calc(100% - 40px)", maxWidth: 340,
+        background: "var(--bg-card)",
+        borderRadius: 14, padding: 18,
+        boxShadow: "0 20px 60px rgba(37,99,235,0.35)",
+        border: "2px solid #2563EB",
+        animation: "tourSlideUp 0.3s ease",
+        pointerEvents: "auto",
+      }}>
+        {/* Progress dots */}
+        <div style={{ display: "flex", gap: 3, marginBottom: 12, justifyContent: "center" }}>
           {TOUR_STEPS.map((_, i) => (
             <div key={i} style={{
-              width: i === step ? 20 : 6, height: 6, borderRadius: 3,
+              width: i === step ? 18 : 5, height: 5, borderRadius: 3,
               background: i === step ? "#2563EB" : i < step ? "#93C5FD" : "#DBEAFE",
               transition: "all 0.3s ease",
             }} />
           ))}
         </div>
 
-        {/* Icon */}
-        <div style={{
-          width: 44, height: 44, borderRadius: 12,
-          background: "#DBEAFE",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          margin: "0 auto 14px",
-        }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        </div>
-
-        {/* Title & description */}
         <h3 style={{
           fontFamily: "'Instrument Serif', serif",
-          fontSize: 22, fontWeight: 400, letterSpacing: "-0.01em",
-          textAlign: "center", marginBottom: 8, color: "var(--text)",
+          fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em",
+          textAlign: "center", marginBottom: 6, color: "var(--text)",
         }}>{tour.title}</h3>
         <p style={{
-          fontSize: 13.5, color: "var(--text2)", textAlign: "center",
-          lineHeight: 1.5, marginBottom: 20,
+          fontSize: 13, color: "var(--text2)", textAlign: "center",
+          lineHeight: 1.5, marginBottom: 16,
         }}>{tour.desc}</p>
 
-        {/* Buttons */}
-        <div style={{ display: "flex", gap: 10, flexDirection: isFirst ? "column" : "row" }}>
+        <div style={{ display: "flex", gap: 8, flexDirection: isFirst ? "column" : "row" }}>
           {!isFirst && (
             <button onClick={onEnd} style={{
-              flex: 1, padding: "11px", border: "1.5px solid #DBEAFE",
-              borderRadius: 10, background: "white", color: "#2563EB",
-              fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-              transition: "background 0.15s ease",
-            }}
-            onMouseEnter={e => e.target.style.background = "#F0F7FF"}
-            onMouseLeave={e => e.target.style.background = "white"}
-            >Skip tour</button>
+              flex: 1, padding: "10px", border: "1.5px solid #DBEAFE",
+              borderRadius: 9, background: "white", color: "#2563EB",
+              fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>Skip</button>
           )}
           <button onClick={handleNext} style={{
             flex: isFirst ? "none" : 1,
             width: isFirst ? "100%" : "auto",
-            padding: "11px 20px", border: "none", borderRadius: 10,
-            background: "#2563EB", color: "white", fontSize: 13, fontWeight: 600,
+            padding: "10px 18px", border: "none", borderRadius: 9,
+            background: "#2563EB", color: "white", fontSize: 12.5, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
-            transition: "background 0.15s ease",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-          onMouseEnter={e => e.target.style.background = "#1D4ED8"}
-          onMouseLeave={e => e.target.style.background = "#2563EB"}
-          >
-            {isFirst ? "Start tour" : isLast ? "Get started" : "Next"}
+          }}>
+            {isFirst ? "Start tour" : isLast ? "Finish 🎉" : "Next"}
             {!isLast && !isFirst && (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             )}
           </button>
         </div>
 
-        {/* Step counter */}
         <p style={{
-          fontSize: 11, color: "var(--text2)", textAlign: "center",
-          marginTop: 14, opacity: 0.6,
+          fontSize: 10.5, color: "var(--text2)", textAlign: "center",
+          marginTop: 10, opacity: 0.6,
         }}>Step {step + 1} of {TOUR_STEPS.length}</p>
       </div>
     </div>
@@ -1001,7 +1108,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
       </div>
 
       {/* upcoming due task spotlight */}
-      <div className="fu" style={{
+      <div data-tour="upcoming-spotlight" className="fu" style={{
         background: "var(--bg-dark)", borderRadius: "var(--r)", padding: "18px 20px",
         marginBottom: 18, position: "relative", overflow: "hidden", animationDelay: "0.04s",
         minHeight: 88, touchAction: upcomingTasks.length > 1 ? "pan-y" : "auto",
@@ -1077,7 +1184,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
       </div>
 
       {/* stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap, 10px)", marginBottom: 18 }}>
+      <div data-tour="dashboard-stats" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap, 10px)", marginBottom: 18 }}>
         {stats.map((s, i) => (
           <div key={i} className="fu" onClick={() => setPage && setPage("tasks")} style={{
             background: "var(--bg-card)", borderRadius: "var(--r)", padding: "var(--card-pad, 14px)",
@@ -1222,12 +1329,12 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
       </div>
 
       {/* view / add / missed tabs */}
-      <div className="fu" style={{
+      <div data-tour="tasks-tabs" className="fu" style={{
         display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, marginBottom: 14,
         background: "#F0ECE6", borderRadius: "var(--rs)", padding: 3, animationDelay: "0.04s",
       }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} data-tour={t.id === "add" ? "tab-add" : undefined} onClick={() => setTab(t.id)} style={{
             padding: "10px 0", border: "none", borderRadius: 10,
             background: tab === t.id ? "var(--bg-card)" : "transparent",
             color: tab === t.id ? "var(--text)" : "var(--text2)",
@@ -1249,7 +1356,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
       </div>
 
       {/* time filter pills — shown on all tabs */}
-      <div className="fu" style={{
+      <div data-tour="time-filters" className="fu" style={{
         display: "flex", gap: 6, marginBottom: 14,
         flexWrap: "nowrap", animationDelay: "0.08s",
         width: "100%",
@@ -2423,7 +2530,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
       {inviteToast && <Toast message={inviteToast.message} type={inviteToast.type} />}
 
       {/* floating action button - add group */}
-      <button onClick={toggleForm} className="fab-group" style={{
+      <button onClick={toggleForm} data-tour="fab-group" className="fab-group" style={{
         position: "fixed", bottom: `calc(80px + env(safe-area-inset-bottom, 0px))`,
         width: 52, height: 52, borderRadius: "50%", border: "none",
         background: "var(--bg-dark)", color: "var(--text-inv)",

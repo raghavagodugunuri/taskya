@@ -307,15 +307,15 @@ function LoginPage({ onLogin }) {
         )}
 
         <button onClick={handleLogin} disabled={loading} style={{
-          padding: "14px", background: loading ? "var(--text2)" : "#1E40AF", color: "white",
+          padding: "14px", background: loading ? "var(--text2)" : "#1C1917", color: "white",
           border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600,
           cursor: loading ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", width: "100%",
           marginTop: 4, transition: "background 0.15s ease",
-          boxShadow: "0 4px 16px rgba(30,64,175,0.25)",
+          boxShadow: "0 4px 16px rgba(28,25,23,0.2)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}
-        onMouseEnter={e => { if (!loading) e.target.style.background = "#1E3A8A"; }}
-        onMouseLeave={e => { if (!loading) e.target.style.background = "#1E40AF"; }}
+        onMouseEnter={e => { if (!loading) e.target.style.background = "#000000"; }}
+        onMouseLeave={e => { if (!loading) e.target.style.background = "#1C1917"; }}
         >
           {loading && (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}>
@@ -1053,7 +1053,7 @@ function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
             flex: isFirst ? "none" : 1,
             width: isFirst ? "100%" : "auto",
             padding: "10px 18px", border: "none", borderRadius: 9,
-            background: "#1E40AF", color: "white", fontSize: 12.5, fontWeight: 600,
+            background: "#1C1917", color: "white", fontSize: 12.5, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}>
@@ -1787,7 +1787,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {showDeleteConfirm && (
         <ConfirmPopup
           title="Delete task"
-          message={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete "${task.title.length > 50 ? task.title.substring(0, 50) + "…" : task.title}"? This action cannot be undone.`}
           confirmLabel="Delete"
           confirmColor="var(--red)"
           onConfirm={() => { dispatch({ type: "DELETE_TASK", id: task.id }); setShowDeleteConfirm(false); showToast("Task deleted", "red"); }}
@@ -1800,8 +1800,8 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
         <ConfirmPopup
           title={isDone ? "Mark as pending" : "Mark as completed"}
           message={isDone
-            ? `Move "${task.title}" back to pending?`
-            : `Mark "${task.title}" as completed?`}
+            ? `Move "${task.title.length > 50 ? task.title.substring(0, 50) + "…" : task.title}" back to pending?`
+            : `Mark "${task.title.length > 50 ? task.title.substring(0, 50) + "…" : task.title}" as completed?`}
           confirmLabel={isDone ? "Undo" : "Complete"}
           confirmColor={isDone ? "var(--accent)" : "var(--green)"}
           onConfirm={() => {
@@ -1817,9 +1817,9 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {showRescheduleConfirm && (
         <ConfirmPopup
           title="Reschedule task"
-          message={`Reschedule "${task.title}" to ${newDueDate}${newDueTime ? ` at ${newDueTime}` : ""}?`}
+          message={`Reschedule "${task.title.length > 40 ? task.title.substring(0, 40) + "…" : task.title}" to ${newDueDate}${newDueTime ? ` at ${newDueTime}` : ""}?`}
           confirmLabel="Reschedule"
-          confirmColor="#F97316"
+          confirmColor="#1C1917"
           onConfirm={confirmReschedule}
           onCancel={() => setShowRescheduleConfirm(false)}
         />
@@ -1836,9 +1836,15 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
           <div className="si" style={{
             background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
             maxWidth: 440, width: "calc(100% - 40px)", boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
+            boxSizing: "border-box", overflow: "hidden",
           }} onClick={e => e.stopPropagation()}>
-            <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Reschedule task</h4>
-            <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 16 }}>Set a new due date for "{task.title}"</p>
+            <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, wordBreak: "break-word" }}>Reschedule task</h4>
+            <p style={{
+              fontSize: 12, color: "var(--text2)", marginBottom: 16,
+              wordBreak: "break-word", overflowWrap: "break-word",
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}>Set a new due date for "{task.title.length > 40 ? task.title.substring(0, 40) + "…" : task.title}"</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
               <div>
                 <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
@@ -1879,13 +1885,13 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
               }}>Cancel</button>
               <button onClick={handleReschedule} disabled={!newDueDate} style={{
                 padding: "9px 18px", border: "none", borderRadius: "var(--rs)",
-                background: "#F97316", color: "white", fontSize: 12, fontWeight: 600,
+                background: "#1C1917", color: "white", fontSize: 12, fontWeight: 600,
                 cursor: newDueDate ? "pointer" : "not-allowed", fontFamily: "inherit",
                 opacity: newDueDate ? 1 : 0.5,
                 transition: "opacity 0.15s ease, background 0.15s ease",
               }}
-              onMouseEnter={e => { if (newDueDate) e.target.style.background = "#EA580C"; }}
-              onMouseLeave={e => { if (newDueDate) e.target.style.background = "#F97316"; }}
+              onMouseEnter={e => { if (newDueDate) e.target.style.background = "#000000"; }}
+              onMouseLeave={e => { if (newDueDate) e.target.style.background = "#1C1917"; }}
               >Reschedule</button>
             </div>
           </div>
@@ -1962,10 +1968,18 @@ function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, o
       <div className="si" style={{
         background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 22,
         maxWidth: maxW, width: "calc(100% - 40px)", boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
+        boxSizing: "border-box", overflow: "hidden",
       }} onClick={e => e.stopPropagation()}>
-        <h4 style={{ fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6 }}>{title}</h4>
-        <p style={{ fontSize: size === "sm" ? 12 : 13, color: "var(--text2)", lineHeight: 1.5, marginBottom: size === "sm" ? 14 : 20 }}>{message}</p>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <h4 style={{
+          fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6,
+          wordBreak: "break-word", overflowWrap: "break-word",
+        }}>{title}</h4>
+        <p style={{
+          fontSize: size === "sm" ? 12 : 13, color: "var(--text2)", lineHeight: 1.5,
+          marginBottom: size === "sm" ? 14 : 20,
+          wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal",
+        }}>{message}</p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
           <button onClick={onCancel} style={{
             padding: size === "sm" ? "6px 14px" : "8px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
             background: "var(--bg)", color: "var(--text2)", fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
@@ -2114,8 +2128,8 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
             onFocus={e => e.target.style.borderColor="var(--accent)"}
             onBlur={e => e.target.style.borderColor="var(--border)"} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div style={{ position: "relative" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, minWidth: 0 }}>
+          <div style={{ position: "relative", minWidth: 0 }}>
             <label style={lbl}>Group {reqDot}</label>
             <button ref={groupBtnRef} type="button"
               onClick={() => setGroupDropdownOpen(o => !o)}
@@ -2123,19 +2137,19 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
                 ...((errors.group ? fldErr : fld)),
                 textAlign: "left", cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                gap: 8,
+                gap: 6, maxWidth: "100%", overflow: "hidden",
               }}>
               {form.group ? (() => {
                 const sel = groups.find(g => g.name === form.group);
                 const isOwner = sel?.createdBy === userName;
                 return (
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}>
                     <span style={{
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      minWidth: 0, flexShrink: 1,
+                      minWidth: 0, flex: 1,
                     }}>{form.group}</span>
                     <span style={{
-                      fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
                       background: isOwner ? "var(--accent-lt)" : "var(--blue-lt)",
                       color: isOwner ? "var(--accent)" : "var(--blue)",
                       textTransform: "uppercase", letterSpacing: "0.04em",
@@ -2303,13 +2317,13 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
           </div>
         )}
         <button onClick={submit} style={{
-          padding: "13px", background: "#1E40AF", color: "white",
+          padding: "13px", background: "#1C1917", color: "white",
           border: "none", borderRadius: "var(--rs)", fontSize: 14, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit", width: "100%", marginTop: 2,
           transition: "background 0.15s ease",
         }}
-        onMouseEnter={e => e.target.style.background="#1E3A8A"}
-        onMouseLeave={e => e.target.style.background="#1E40AF"}>
+        onMouseEnter={e => e.target.style.background="#000000"}
+        onMouseLeave={e => e.target.style.background="#1C1917"}>
           Create Task
         </button>
       </div>
@@ -2341,6 +2355,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   const [confirmCreate, setConfirmCreate] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [confirmRemoveMember, setConfirmRemoveMember] = useState(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const topRef = useRef(null);
 
   const toggleForm = () => {
@@ -2370,13 +2385,21 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   };
 
   const confirmAddGroup = async () => {
-    const gId = `g_${userName}_${Date.now()}`;
-    const trimmed = newName.trim();
-    await dbInsert("taskya_groups", { id: gId, name: trimmed, color: newColor, created_by: userName, is_default: false });
-    await dbInsert("taskya_group_members", { group_id: gId, username: userName });
-    setGroups(p => [...p, { id: gId, name: trimmed, color: newColor, members: [userName], createdBy: userName, isDefault: false }]);
-    setNewName(""); setShowForm(false); setConfirmCreate(false);
-    showInviteToast("Group created", "green");
+    if (creatingGroup) return;
+    setCreatingGroup(true);
+    try {
+      const gId = `g_${userName}_${Date.now()}`;
+      const trimmed = newName.trim();
+      await dbInsert("taskya_groups", { id: gId, name: trimmed, color: newColor, created_by: userName, is_default: false });
+      await dbInsert("taskya_group_members", { group_id: gId, username: userName });
+      setGroups(p => [...p, { id: gId, name: trimmed, color: newColor, members: [userName], createdBy: userName, isDefault: false }]);
+      setNewName(""); setShowForm(false); setConfirmCreate(false);
+      showInviteToast("Group created", "green");
+    } catch (e) {
+      showInviteToast("Failed to create group", "red");
+    } finally {
+      setCreatingGroup(false);
+    }
   };
 
   const deleteGroup = async (gid) => {
@@ -2531,21 +2554,38 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
               }} />
             ))}
           </div>
-          <button onClick={addGroup} style={{
-            padding: "10px", background: "#1E40AF", color: "white",
+          <button onClick={addGroup} disabled={!newName.trim() || creatingGroup} style={{
+            padding: "10px", background: (!newName.trim() || creatingGroup) ? "var(--text2)" : "#1C1917", color: "white",
             border: "none", borderRadius: "var(--rs)", fontSize: 13, fontWeight: 600,
-            cursor: "pointer", fontFamily: "inherit", width: "100%",
-            transition: "background 0.15s ease",
+            cursor: (!newName.trim() || creatingGroup) ? "not-allowed" : "pointer", fontFamily: "inherit", width: "100%",
+            opacity: (!newName.trim() || creatingGroup) ? 0.6 : 1,
+            transition: "background 0.15s ease, opacity 0.15s ease",
           }}
-          onMouseEnter={e => e.target.style.background = "#1E3A8A"}
-          onMouseLeave={e => e.target.style.background = "#1E40AF"}
-          >Create Group</button>
+          onMouseEnter={e => { if (newName.trim() && !creatingGroup) e.target.style.background = "#000000"; }}
+          onMouseLeave={e => { if (newName.trim() && !creatingGroup) e.target.style.background = "#1C1917"; }}
+          >{creatingGroup ? "Creating..." : "Create Group"}</button>
         </div>
       )}
 
       {(() => {
-        // Only show groups where the current user is a member
-        const visibleGroups = groups.filter(g => g.members.includes(userName));
+        // Only show groups where the current user is a member, and sort them:
+        // 1. Default group first
+        // 2. Groups I created (alphabetical)
+        // 3. Groups I was invited to (alphabetical)
+        const visibleGroups = groups
+          .filter(g => g.members.includes(userName))
+          .sort((a, b) => {
+            // Default group always first
+            if (a.isDefault && !b.isDefault) return -1;
+            if (!a.isDefault && b.isDefault) return 1;
+            // Then my created groups
+            const aMine = a.createdBy === userName;
+            const bMine = b.createdBy === userName;
+            if (aMine && !bMine) return -1;
+            if (!aMine && bMine) return 1;
+            // Alphabetical within same bucket
+            return a.name.localeCompare(b.name);
+          });
         return visibleGroups.length === 0 ? (
           <EmptyState msg="No groups yet. Tap + to create!" />
         ) : (
@@ -2562,13 +2602,27 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                   border: "1px solid var(--border)", borderLeft: `3px solid ${g.color}`,
                   boxShadow: "var(--sh)", animationDelay: `${i * 0.05}s`,
                 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, overflow: "hidden" }}>
                       <span style={{
                         fontSize: 15, fontWeight: 600,
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                        minWidth: 0,
+                        minWidth: 0, flexShrink: 1,
                       }}>{g.name}</span>
+                      {isCreator && !g.isDefault && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                          background: "var(--accent-lt)", color: "var(--accent)",
+                          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                        }}>Owner · You</span>
+                      )}
+                      {!isCreator && !g.isDefault && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                          background: "var(--bg)", color: "var(--text2)",
+                          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                        }}>by {g.createdBy}</span>
+                      )}
                       {isInvited && (
                         <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "var(--blue-lt)", color: "var(--blue)", textTransform: "uppercase", flexShrink: 0 }}>Invited</span>
                       )}
@@ -2577,7 +2631,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                      <span style={{ fontSize: 10, color: "var(--text2)", background: "var(--bg)", padding: "2px 8px", borderRadius: 100 }}>{gt.length} tasks</span>
+                      <span style={{ fontSize: 10, color: "var(--text2)", background: "var(--bg)", padding: "2px 8px", borderRadius: 100, whiteSpace: "nowrap" }}>{gt.length} tasks</span>
                       {!g.isDefault && isCreator && (
                         <button onClick={() => setConfirmDeleteId(g.id)} style={{ background: "none", border: "none", color: "var(--border)", cursor: "pointer", padding: 2 }}>{I.trash}</button>
                       )}
@@ -2638,10 +2692,14 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                         style={{ ...fld, flex: 1, textTransform: "lowercase" }}
                       />
                       <button onClick={() => sendInvite(g.id)} style={{
-                        padding: "8px 12px", background: g.color, color: "white", border: "none",
+                        padding: "8px 12px", background: "#1C1917", color: "white", border: "none",
                         borderRadius: "var(--rs)", cursor: "pointer", flexShrink: 0,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>{I.userPlus}</button>
+                        transition: "background 0.15s ease",
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#000000"}
+                      onMouseLeave={e => e.currentTarget.style.background = "#1C1917"}
+                      >{I.userPlus}</button>
                     </div>
                   )}
                 </div>
@@ -2737,7 +2795,15 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
               </p>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {g.members.map((m, idx) => {
+                {(() => {
+                  // Sort: owner first, then rest alphabetically
+                  const sorted = [...g.members].sort((a, b) => {
+                    if (a === g.createdBy) return -1;
+                    if (b === g.createdBy) return 1;
+                    return a.localeCompare(b);
+                  });
+                  return sorted;
+                })().map((m, idx) => {
                   const isOwner = m === g.createdBy;
                   const isMe = m === userName;
                   const canRemove = isCreator && !isOwner && !isMe;
@@ -2797,15 +2863,15 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
       <button onClick={toggleForm} data-tour="fab-group" className="fab-group" style={{
         position: "fixed", bottom: `calc(80px + env(safe-area-inset-bottom, 0px))`,
         width: 52, height: 52, borderRadius: "50%", border: "none",
-        background: "#1E40AF", color: "white",
+        background: "#1C1917", color: "white",
         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 6px 20px rgba(30,64,175,0.35)",
+        boxShadow: "0 6px 20px rgba(28,25,23,0.3)",
         transition: "transform 0.25s ease, box-shadow 0.15s ease",
         transform: showForm ? "rotate(45deg) scale(1.05)" : "rotate(0) scale(1)",
         zIndex: 90,
       }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(30,64,175,0.45)"}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 20px rgba(30,64,175,0.35)"}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(28,25,23,0.4)"}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 20px rgba(28,25,23,0.3)"}
       >{I.plus}</button>
     </div>
   );

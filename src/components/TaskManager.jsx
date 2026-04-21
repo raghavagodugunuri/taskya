@@ -1,4 +1,5 @@
 import { useState, useEffect, useReducer, useRef } from "react";
+import ReactDOM from "react-dom";
 
 /* ───────────────────────── main ───────────────────────── */
 
@@ -1183,18 +1184,6 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
           <div>
-            <p style={{ fontSize: 11, color: "var(--text2)", letterSpacing: "0.04em" }}>
-              {(() => {
-                const firstLoginKey = `taskya_first_login_${userName}`;
-                const seen = typeof window !== "undefined" ? localStorage.getItem(firstLoginKey) : "1";
-                if (!seen) {
-                  // Mark as seen after short delay so the text is captured
-                  setTimeout(() => { try { localStorage.setItem(firstLoginKey, "1"); } catch {} }, 100);
-                  return "WELCOME";
-                }
-                return "WELCOME BACK";
-              })()}
-            </p>
             <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
               Hi, {userName}<span style={{ color: "var(--accent)" }}>.</span>
             </h2>
@@ -1765,23 +1754,6 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 wordBreak: "break-word", overflowWrap: "anywhere",
                 whiteSpace: "normal", flex: 1, minWidth: 0,
               }} title={task.title}>{task.title}</div>
-              {isGroupTask && !isOwner && taskOwner && (
-                <span style={{
-                  padding: "2px 7px", borderRadius: 100, fontSize: 9, fontWeight: 700,
-                  background: groupColor, color: "white", opacity: 0.9,
-                  letterSpacing: "0.02em", display: "inline-flex", alignItems: "center", gap: 3,
-                }}>
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M12 14c-4 0-8 2-8 6v2h16v-2c0-4-4-6-8-6z"/></svg>
-                  {taskOwner}
-                </span>
-              )}
-              {isGroupTask && isOwner && (
-                <span style={{
-                  padding: "2px 7px", borderRadius: 100, fontSize: 9, fontWeight: 700,
-                  background: groupColor, color: "white", opacity: 0.9,
-                  textTransform: "uppercase", letterSpacing: "0.04em",
-                }}>You</span>
-              )}
             </div>
             {task.desc && <div style={{ fontSize: 12, color: isMissed ? "rgba(220,38,38,0.6)" : "var(--text2)", marginTop: 2, lineHeight: 1.4 }}>{task.desc}</div>}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
@@ -1906,13 +1878,14 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {showReschedule && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(28,25,23,0.35)",
+          background: "rgba(28,25,23,0.55)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 200, padding: 20,
+          zIndex: 99999, padding: 20,
+          backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
         }} onClick={() => setShowReschedule(false)}>
           <div className="si" style={{
             background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
-            maxWidth: 440, width: "calc(100% - 40px)", boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
+            maxWidth: 440, width: "calc(100% - 40px)", boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
             boxSizing: "border-box", overflow: "hidden",
           }} onClick={e => e.stopPropagation()}>
             <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, wordBreak: "break-word" }}>Reschedule task</h4>
@@ -2039,17 +2012,21 @@ function ActivityTimeline({ activity }) {
 
 function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, onCancel, size }) {
   const maxW = size === "sm" ? 320 : 440;
-  return (
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const overlay = (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "rgba(28,25,23,0.35)",
+      background: "rgba(28,25,23,0.55)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 200, padding: 20,
+      zIndex: 99999, padding: 20,
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
     }} onClick={onCancel}>
       <div className="si" style={{
         background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 22,
-        maxWidth: maxW, width: "calc(100% - 40px)", boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
-        boxSizing: "border-box", overflow: "hidden",
+        maxWidth: maxW, width: "calc(100% - 40px)", boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+        boxSizing: "border-box", overflow: "hidden", position: "relative",
       }} onClick={e => e.stopPropagation()}>
         <h4 style={{
           fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6,
@@ -2082,6 +2059,10 @@ function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, o
       </div>
     </div>
   );
+
+  // Render via portal to document.body — escapes all parent stacking contexts
+  if (!mounted || typeof document === "undefined") return null;
+  return ReactDOM.createPortal(overlay, document.body);
 }
 
 function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, showToast, userName }) {
@@ -2871,8 +2852,9 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
         return (
           <div style={{
             position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(28,25,23,0.35)", zIndex: 200, padding: 20,
+            background: "rgba(28,25,23,0.55)", zIndex: 99999, padding: 20,
             display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
           }} onClick={() => setMembersPopup(null)}>
             <div className="si" style={{
               background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,

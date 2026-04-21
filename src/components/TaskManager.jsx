@@ -206,13 +206,13 @@ function LoginPage({ onLogin }) {
       <style>{`
         :root { color-scheme: light only; }
         html, body {
-          background: #FAF8F5 !important;
+          background: #FFFFFF !important;
           color: #1C1917 !important;
           color-scheme: light only !important;
         }
         :root {
-          --bg:#FAF8F5;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
-          --text-inv:#FAF8F5;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
+          --bg:#FFFFFF;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
+          --text-inv:#FFFFFF;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
           --green:#16A34A;--red:#DC2626;
         }
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -246,7 +246,7 @@ function LoginPage({ onLogin }) {
           <input
             value={email} onChange={e => { setEmail(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, "")); setError(""); }}
             onKeyDown={handleKeyDown}
-            placeholder="johndoe"
+            placeholder="user_n.me"
             autoCapitalize="none" autoCorrect="off"
             style={{...fld, textTransform: "lowercase"}}
             onFocus={e => e.target.style.borderColor = "var(--accent)"}
@@ -481,7 +481,7 @@ export default function TaskManager() {
         fontFamily: "'DM Sans', sans-serif", background: "var(--bg)",
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12,
       }}>
-        <style>{`:root{--bg:#FAF8F5;--accent:#D97706;}`}</style>
+        <style>{`:root{--bg:#FFFFFF;--accent:#D97706;}`}</style>
         <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 72, height: 72, borderRadius: 18, marginBottom: 8 }} />
         <div style={{ width: 36, height: 36, border: "3px solid #E7E1DA", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -532,7 +532,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     }
     meta.content = "light";
     document.documentElement.style.colorScheme = "light";
-    document.body.style.background = "#FAF8F5";
+    document.body.style.background = "#FFFFFF";
     document.body.style.color = "#1C1917";
   }, []);
 
@@ -657,13 +657,13 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       <style>{`
         :root { color-scheme: light only; }
         html, body {
-          background: #FAF8F5 !important;
+          background: #FFFFFF !important;
           color: #1C1917 !important;
           color-scheme: light only !important;
         }
         :root {
-          --bg:#FAF8F5;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
-          --text-inv:#FAF8F5;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
+          --bg:#FFFFFF;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
+          --text-inv:#FFFFFF;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
           --green:#16A34A;--green-lt:#DCFCE7;--red:#DC2626;--red-lt:#FEE2E2;
           --blue:#2563EB;--blue-lt:#DBEAFE;--purple:#7C3AED;
           --sh:0 1px 3px rgba(28,25,23,0.04);--shm:0 4px 16px rgba(28,25,23,0.06);
@@ -695,12 +695,10 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         }}
         *{box-sizing:border-box;margin:0;padding:0;}
         ::-webkit-scrollbar{display:none;}
-        html,body{overflow-x:hidden;-webkit-text-size-adjust:100%;}
-        body{background:var(--bg);min-height:100vh;}
+        html,body{overflow-x:hidden;-webkit-text-size-adjust:100%;background:#FFFFFF !important;}
+        body{background:#FFFFFF !important;min-height:100vh;}
         @media(min-width:768px){
-          body{
-            background:linear-gradient(135deg, #f5f0e8 0%, #ede4d3 100%);
-          }
+          body{background:#FFFFFF !important;}
         }
         @keyframes fu{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         @keyframes si{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
@@ -795,9 +793,9 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
 const TOUR_STEPS = [
   {
     page: "dashboard",
-    target: null,
-    title: "Welcome to TASKYA! 👋",
-    desc: "A quick tour so you know where everything is.",
+    target: "nav-dashboard",
+    title: "This is Home 🏠",
+    desc: "Start here. Welcome to TASKYA! Let's walk through a quick tour so you know where everything is.",
   },
   {
     page: "dashboard",
@@ -816,12 +814,6 @@ const TOUR_STEPS = [
     target: "home-groups",
     title: "Your Groups",
     desc: "See all your groups and their progress. Tap any row to open Groups.",
-  },
-  {
-    page: "dashboard",
-    target: "nav-dashboard",
-    title: "Home Tab",
-    desc: "This is your Home. Come back here anytime for a quick overview.",
   },
   {
     page: "dashboard",
@@ -846,6 +838,12 @@ const TOUR_STEPS = [
     target: "tab-add",
     title: "Create a Task",
     desc: "Tap Add — set title, group, priority, and due date.",
+  },
+  {
+    page: "tasks",
+    target: null,
+    title: "Task Details & Activity",
+    desc: "Tap any task card — a bottom sheet slides up with full details, description, and the activity timeline (who did what, when).",
   },
   {
     page: "tasks",
@@ -1252,16 +1250,28 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                 lineHeight: 1.4, marginBottom: 6,
               }}>{currentTask?.title}</p>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "rgba(250,248,245,0.45)" }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <span>{fmtDate(currentTask?.dueDate)}</span>
-                {currentTask?.dueTime && (
+                {currentTask?.dueDate ? (
                   <>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <span>{fmtDate(currentTask.dueDate)}</span>
+                    {currentTask?.dueTime && (
+                      <>
+                        <span>·</span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span>{fmtTime12(currentTask.dueTime)}</span>
+                      </>
+                    )}
                     <span>·</span>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <span>{fmtTime12(currentTask?.dueTime)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{
+                      padding: "2px 8px", borderRadius: 5, fontSize: 9, fontWeight: 700,
+                      textTransform: "uppercase", background: "rgba(250,248,245,0.1)", color: "rgba(250,248,245,0.65)",
+                    }}>Anytime</span>
+                    <span>·</span>
                   </>
                 )}
-                <span>·</span>
                 <span>{currentTask?.group}</span>
               </div>
             </div>
@@ -1333,16 +1343,16 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateX(2px)"; e.currentTarget.style.boxShadow = "var(--sh)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "translateX(0)"; e.currentTarget.style.boxShadow = "none"; }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 10 }}>
                     <span title={g.name} style={{
                       fontSize: 13, fontWeight: 600,
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      wordBreak: "break-word", overflowWrap: "anywhere",
                       flex: 1, minWidth: 0,
                     }}>{g.name}</span>
                     <span style={{ fontSize: 10, color: "var(--text2)", flexShrink: 0 }}>{gd}/{gt.length}</span>
                   </div>
                   <div style={{ background: "var(--border)", borderRadius: 100, height: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", borderRadius: 100, background: g.color, width: `${pct}%`, transition: "width 0.6s ease" }} />
+                    <div style={{ height: "100%", borderRadius: 100, background: "var(--green)", width: `${pct}%`, transition: "width 0.6s ease" }} />
                   </div>
                 </div>
               );
@@ -1591,6 +1601,34 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
               }}>{activeTask.title}</h4>
             </div>
 
+            {/* task details: group + description */}
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+              {(() => {
+                const grp = groups?.find(g => g.id === activeTask.groupId || g.name === activeTask.group);
+                return grp ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: grp.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em" }}>GROUP</span>
+                    <span style={{
+                      fontSize: 13, fontWeight: 600, color: "var(--text)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      minWidth: 0, flex: 1,
+                    }} title={grp.name}>{grp.name}</span>
+                  </div>
+                ) : null;
+              })()}
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>DESCRIPTION</p>
+                <p style={{
+                  fontSize: 13,
+                  color: activeTask.desc ? "var(--text)" : "var(--text2)",
+                  lineHeight: 1.5,
+                  wordBreak: "break-word", overflowWrap: "break-word",
+                  fontStyle: activeTask.desc ? "normal" : "italic",
+                }}>{activeTask.desc || "No description provided"}</p>
+              </div>
+            </div>
+
             {/* timeline */}
             <div style={{ padding: "20px 20px calc(24px + env(safe-area-inset-bottom, 0px))" }}>
               <p style={{ fontSize: 11, color: "var(--text2)", marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
@@ -1724,8 +1762,8 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
               <div style={{
                 fontSize: 14, fontWeight: isMissed ? 600 : 500, lineHeight: 1.35,
                 color: titleColor,
-                maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                wordBreak: "break-word", overflowWrap: "anywhere",
+                whiteSpace: "normal", flex: 1, minWidth: 0,
               }} title={task.title}>{task.title}</div>
               {isGroupTask && !isOwner && taskOwner && (
                 <span style={{
@@ -1760,7 +1798,6 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 color={isMissed ? "var(--red)" : undefined}
                 text={task.dueTime}
               />}
-              <StatusBadge status={task.status} />
               {task.rescheduled && !isMissed && (
                 <span style={{
                   padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700,
@@ -2667,11 +2704,11 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                   border: "1px solid var(--border)", borderLeft: `3px solid ${g.color}`,
                   boxShadow: "var(--sh)", animationDelay: `${i * 0.05}s`,
                 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, overflow: "hidden" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
                       <span title={g.name} style={{
                         fontSize: 15, fontWeight: 600,
-                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        wordBreak: "break-word", overflowWrap: "anywhere",
                         minWidth: 0, flexShrink: 1,
                       }}>{g.name}</span>
                       {isCreator && !g.isDefault && (
@@ -2679,7 +2716,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                           fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
                           background: "var(--accent-lt)", color: "var(--accent)",
                           textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
-                        }}>Owner · You</span>
+                        }}>You</span>
                       )}
                       {!isCreator && !g.isDefault && (
                         <span style={{
@@ -2705,7 +2742,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
 
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ background: "var(--border)", borderRadius: 100, height: 4, overflow: "hidden" }}>
-                      <div style={{ height: "100%", borderRadius: 100, background: g.color, width: `${gt.length ? (gd/gt.length)*100 : 0}%`, transition: "width 0.5s ease" }} />
+                      <div style={{ height: "100%", borderRadius: 100, background: "var(--green)", width: `${gt.length ? (gd/gt.length)*100 : 0}%`, transition: "width 0.5s ease" }} />
                     </div>
                     <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 3 }}>{gd}/{gt.length} completed</div>
                   </div>
@@ -3058,24 +3095,37 @@ function Pill({ text, bg, color: clr }) {
 }
 
 function LogoutBtn({ onLogout }) {
+  const [showConfirm, setShowConfirm] = useState(false);
   return (
-    <button onClick={onLogout} style={{
-      display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
-      border: "1px solid var(--border)", borderRadius: 8,
-      background: "var(--bg-card)", cursor: "pointer", fontFamily: "inherit",
-      fontSize: 11, fontWeight: 600, color: "var(--text2)",
-      transition: "all 0.15s ease",
-      WebkitTapHighlightColor: "transparent",
-      minHeight: 32,
-    }}
-    onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
-    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
-    onTouchStart={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
-    onTouchEnd={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      Logout
-    </button>
+    <>
+      <button onClick={() => setShowConfirm(true)} style={{
+        display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+        border: "1px solid var(--border)", borderRadius: 8,
+        background: "var(--bg-card)", cursor: "pointer", fontFamily: "inherit",
+        fontSize: 11, fontWeight: 600, color: "var(--text2)",
+        transition: "all 0.15s ease",
+        WebkitTapHighlightColor: "transparent",
+        minHeight: 32,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+      onTouchStart={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
+      onTouchEnd={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Logout
+      </button>
+      {showConfirm && (
+        <ConfirmPopup
+          title="Log out"
+          message="Are you sure you want to log out? You'll need to sign in again next time."
+          confirmLabel="Log out"
+          confirmColor="var(--red)"
+          onConfirm={() => { setShowConfirm(false); onLogout(); }}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+    </>
   );
 }
 

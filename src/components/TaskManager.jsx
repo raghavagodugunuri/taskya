@@ -307,24 +307,37 @@ function LoginPage({ onLogin }) {
         )}
 
         <button onClick={handleLogin} disabled={loading} style={{
-          padding: "14px", background: loading ? "var(--text2)" : "#000000", color: "white",
+          padding: "14px", background: loading ? "var(--text2)" : "#1C1917", color: "white",
           border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600,
           cursor: loading ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", width: "100%",
           marginTop: 4, transition: "box-shadow 0.15s ease, transform 0.15s ease",
-          boxShadow: loading ? "none" : "0 4px 16px rgba(0,0,0,0.3)",
+          boxShadow: loading ? "none" : "0 4px 16px rgba(28,25,23,0.35)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}
-        onMouseEnter={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 6px 22px rgba(0,0,0,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-        onMouseLeave={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.3)"; e.currentTarget.style.transform = "translateY(0)"; } }}
+        onMouseEnter={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 6px 22px rgba(28,25,23,0.5)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+        onMouseLeave={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 4px 16px rgba(28,25,23,0.35)"; e.currentTarget.style.transform = "translateY(0)"; } }}
         >
-          {loading && (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}>
-              <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/>
-            </svg>
-          )}
-          {loading ? "Please wait..." : (isSignUp ? "Create Account" : "Sign In")}
+          {loading ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <span>{isSignUp ? "Creating account" : "Signing in"}</span>
+              <span className="loading-dots" style={{ display: "inline-flex", gap: 2 }}>
+                <span className="ld-dot">.</span>
+                <span className="ld-dot">.</span>
+                <span className="ld-dot">.</span>
+              </span>
+            </span>
+          ) : (isSignUp ? "Create Account" : "Sign In")}
         </button>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <style>{`
+          @keyframes spin{to{transform:rotate(360deg)}}
+          @keyframes ldBounce {
+            0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+            40% { opacity: 1; transform: translateY(-3px); }
+          }
+          .ld-dot { animation: ldBounce 1.4s ease-in-out infinite both; font-weight: 900; font-size: 18px; line-height: 1; }
+          .ld-dot:nth-child(2) { animation-delay: 0.18s; }
+          .ld-dot:nth-child(3) { animation-delay: 0.36s; }
+        `}</style>
 
         <p style={{ fontSize: 12, color: "var(--text2)", textAlign: "center", marginTop: 4 }}>
           {isSignUp ? (
@@ -520,7 +533,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     meta.content = "light";
     document.documentElement.style.colorScheme = "light";
     document.body.style.background = "#FAF8F5";
-    document.body.style.color = "#000000";
+    document.body.style.color = "#1C1917";
   }, []);
 
   // Smoothly scroll focused inputs into view when virtual keyboard appears
@@ -721,6 +734,9 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         @media(min-width:480px){.fab-group{right: max(calc((100vw - 520px) / 2 + 18px), 18px);}}
         @media(min-width:768px){.fab-group{right: max(calc((100vw - 600px) / 2 + 18px), 18px);}}
         @media(min-width:1024px){.fab-group{right: max(calc((100vw - 640px) / 2 + 18px), 18px);}}
+        /* Hide scrollbar on group selector name but keep scrolling functional */
+        .gsel-name::-webkit-scrollbar { display: none; height: 0; width: 0; }
+        .gsel-name { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       <div style={{ paddingBottom: 90, minHeight: "100vh", background: "var(--bg)" }}>
@@ -781,7 +797,7 @@ const TOUR_STEPS = [
     page: "dashboard",
     target: null,
     title: "Welcome to TASKYA! 👋",
-    desc: "A quick 10-step tour so you know where everything is.",
+    desc: "A quick tour so you know where everything is.",
   },
   {
     page: "dashboard",
@@ -803,9 +819,15 @@ const TOUR_STEPS = [
   },
   {
     page: "dashboard",
+    target: "nav-dashboard",
+    title: "Home Tab",
+    desc: "This is your Home. Come back here anytime for a quick overview.",
+  },
+  {
+    page: "dashboard",
     target: "nav-tasks",
     title: "Tasks Tab",
-    desc: "Jump here anytime to view, add, or manage tasks.",
+    desc: "Jump here to view, add, or manage tasks.",
   },
   {
     page: "tasks",
@@ -838,10 +860,10 @@ const TOUR_STEPS = [
     desc: "Tap + to make a group. Invite members by their username.",
   },
   {
-    page: "dashboard",
+    page: "tasks",
     target: null,
     title: "You're all set! 🎉",
-    desc: "Create your first task and you're off. Enjoy TASKYA!",
+    desc: "You're now on the Tasks tab. Create your first task to get started!",
   },
 ];
 
@@ -1053,28 +1075,20 @@ function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
             flex: isFirst ? "none" : 1,
             width: isFirst ? "100%" : "auto",
             padding: "11px 20px", border: "none", borderRadius: 9,
-            background: "#000000", color: "white", fontSize: 12.5, fontWeight: 600,
+            background: "#2563EB", color: "white", fontSize: 12.5, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            transition: "box-shadow 0.15s ease, transform 0.15s ease",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+            transition: "box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease",
+            boxShadow: "0 2px 8px rgba(37,99,235,0.3)",
           }}
-          onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.4)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; }}
+          onMouseEnter={e => { e.currentTarget.style.background = "#1D4ED8"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(37,99,235,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "#2563EB"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(37,99,235,0.3)"; e.currentTarget.style.transform = "translateY(0)"; }}
           >
             {isFirst ? "Start tour" : isLast ? "Finish 🎉" : "Next"}
             {!isLast && !isFirst && (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
             )}
           </button>
-          {isFirst && (
-            <button onClick={onEnd} style={{
-              width: "100%", padding: "10px", border: "none", borderRadius: 9,
-              background: "transparent", color: "var(--text2)",
-              fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
-              textDecoration: "underline", marginTop: -2,
-            }}>Hide tour — don't show again</button>
-          )}
         </div>
 
         <p style={{
@@ -1171,7 +1185,18 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
           <div>
-            <p style={{ fontSize: 11, color: "var(--text2)", letterSpacing: "0.04em" }}>WELCOME BACK</p>
+            <p style={{ fontSize: 11, color: "var(--text2)", letterSpacing: "0.04em" }}>
+              {(() => {
+                const firstLoginKey = `taskya_first_login_${userName}`;
+                const seen = typeof window !== "undefined" ? localStorage.getItem(firstLoginKey) : "1";
+                if (!seen) {
+                  // Mark as seen after short delay so the text is captured
+                  setTimeout(() => { try { localStorage.setItem(firstLoginKey, "1"); } catch {} }, 100);
+                  return "WELCOME";
+                }
+                return "WELCOME BACK";
+              })()}
+            </p>
             <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
               Hi, {userName}<span style={{ color: "var(--accent)" }}>.</span>
             </h2>
@@ -1520,7 +1545,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
       {activeTask && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.4)", zIndex: 300,
+          background: "rgba(28,25,23,0.45)", zIndex: 300,
           display: "flex", alignItems: "flex-end", justifyContent: "center",
         }} onClick={() => setActiveTask(null)}>
           <div style={{
@@ -1834,7 +1859,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
           title="Reschedule task"
           message={`Reschedule "${task.title.length > 40 ? task.title.substring(0, 40) + "…" : task.title}" to ${newDueDate}${newDueTime ? ` at ${newDueTime}` : ""}?`}
           confirmLabel="Reschedule"
-          confirmColor="#000000"
+          confirmColor="#1C1917"
           onConfirm={confirmReschedule}
           onCancel={() => setShowRescheduleConfirm(false)}
         />
@@ -1892,23 +1917,25 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 />
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 10, justifyContent: "stretch" }}>
               <button onClick={() => setShowReschedule(false)} style={{
-                padding: "9px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
-                background: "var(--bg)", color: "var(--text2)", fontSize: 12, fontWeight: 600,
+                flex: 1, minWidth: 100,
+                padding: "10px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+                background: "var(--bg)", color: "var(--text2)", fontSize: 13, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
               }}>Cancel</button>
               <button onClick={handleReschedule} disabled={!newDueDate} style={{
-                padding: "9px 20px", border: "none", borderRadius: "var(--rs)",
-                background: newDueDate ? "#000000" : "var(--border)",
+                flex: 1, minWidth: 100,
+                padding: "10px 20px", border: "none", borderRadius: "var(--rs)",
+                background: newDueDate ? "#1C1917" : "var(--border)",
                 color: newDueDate ? "white" : "var(--text2)",
-                fontSize: 12, fontWeight: 600,
+                fontSize: 13, fontWeight: 600,
                 cursor: newDueDate ? "pointer" : "not-allowed", fontFamily: "inherit",
                 transition: "box-shadow 0.15s ease, transform 0.15s ease",
-                boxShadow: newDueDate ? "0 2px 8px rgba(0,0,0,0.25)" : "none",
+                boxShadow: newDueDate ? "0 2px 8px rgba(28,25,23,0.3)" : "none",
               }}
-              onMouseEnter={e => { if (newDueDate) { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.4)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-              onMouseLeave={e => { if (newDueDate) { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; } }}
+              onMouseEnter={e => { if (newDueDate) { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+              onMouseLeave={e => { if (newDueDate) { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; } }}
               >Reschedule</button>
             </div>
           </div>
@@ -1996,21 +2023,23 @@ function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, o
           marginBottom: size === "sm" ? 14 : 20,
           wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal",
         }}>{message}</p>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, justifyContent: "stretch", flexWrap: "wrap" }}>
           <button onClick={onCancel} style={{
-            padding: size === "sm" ? "6px 14px" : "8px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
-            background: "var(--bg)", color: "var(--text2)", fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
+            flex: 1, minWidth: 100,
+            padding: size === "sm" ? "9px 14px" : "10px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+            background: "var(--bg)", color: "var(--text2)", fontSize: size === "sm" ? 12 : 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s ease",
           }}>Cancel</button>
           <button onClick={onConfirm} style={{
-            padding: size === "sm" ? "7px 16px" : "9px 20px", border: "none", borderRadius: "var(--rs)",
-            background: confirmColor, color: "white", fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
+            flex: 1, minWidth: 100,
+            padding: size === "sm" ? "9px 14px" : "10px 18px", border: "none", borderRadius: "var(--rs)",
+            background: confirmColor, color: "white", fontSize: size === "sm" ? 12 : 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
             transition: "box-shadow 0.15s ease, transform 0.15s ease",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+            boxShadow: "0 2px 8px rgba(28,25,23,0.3)",
           }}
-          onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.4)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; }}
+          onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; }}
           >{confirmLabel}</button>
         </div>
       </div>
@@ -2147,26 +2176,33 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
             onFocus={e => e.target.style.borderColor="var(--accent)"}
             onBlur={e => e.target.style.borderColor="var(--border)"} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, minWidth: 0 }}>
-          <div style={{ position: "relative", minWidth: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, auto) minmax(120px, 1fr)", gap: 10, minWidth: 0 }}>
+          <div style={{ position: "relative", minWidth: 0, maxWidth: "100%" }}>
             <label style={lbl}>Group {reqDot}</label>
             <button ref={groupBtnRef} type="button"
               onClick={() => setGroupDropdownOpen(o => !o)}
               style={{
                 ...((errors.group ? fldErr : fld)),
                 textAlign: "left", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                gap: 6, maxWidth: "100%", overflow: "hidden",
+                display: "flex", alignItems: "center", justifyContent: "flex-start",
+                gap: 8, width: "100%", maxWidth: "100%", overflow: "hidden",
               }}>
               {form.group ? (() => {
                 const sel = groups.find(g => g.name === form.group);
                 const isOwner = sel?.createdBy === userName;
                 return (
                   <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}>
+                    {/* horizontally scrollable name — shows full name if user drags */}
                     <span style={{
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      minWidth: 0, flex: 1,
-                    }}>{form.group}</span>
+                      overflowX: "auto", overflowY: "hidden", whiteSpace: "nowrap",
+                      minWidth: 0, flex: 1, maxWidth: "100%",
+                      WebkitOverflowScrolling: "touch",
+                      scrollbarWidth: "none", msOverflowStyle: "none",
+                      display: "inline-block",
+                    }}
+                    className="gsel-name"
+                    onClick={e => e.stopPropagation()}
+                    >{form.group}</span>
                     <span style={{
                       fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
                       background: isOwner ? "var(--accent-lt)" : "var(--blue-lt)",
@@ -2336,14 +2372,14 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
           </div>
         )}
         <button onClick={submit} style={{
-          padding: "13px", background: "#000000", color: "white",
+          padding: "13px", background: "#1C1917", color: "white",
           border: "none", borderRadius: "var(--rs)", fontSize: 14, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit", width: "100%", marginTop: 2,
           transition: "box-shadow 0.15s ease, transform 0.15s ease",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          boxShadow: "0 2px 8px rgba(28,25,23,0.25)",
         }}
         onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.35)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-        onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+        onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.25)"; e.currentTarget.style.transform = "translateY(0)"; }}>
           Create Task
         </button>
       </div>
@@ -2575,15 +2611,24 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
             ))}
           </div>
           <button onClick={addGroup} disabled={!newName.trim() || creatingGroup} style={{
-            padding: "12px", background: (!newName.trim() || creatingGroup) ? "var(--border)" : "#000000", color: (!newName.trim() || creatingGroup) ? "var(--text2)" : "white",
+            padding: "12px", background: (!newName.trim() || creatingGroup) ? "var(--border)" : "#1C1917", color: (!newName.trim() || creatingGroup) ? "var(--text2)" : "white",
             border: "none", borderRadius: "var(--rs)", fontSize: 13, fontWeight: 600,
             cursor: (!newName.trim() || creatingGroup) ? "not-allowed" : "pointer", fontFamily: "inherit", width: "100%",
             transition: "box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease",
-            boxShadow: (!newName.trim() || creatingGroup) ? "none" : "0 2px 8px rgba(0,0,0,0.25)",
+            boxShadow: (!newName.trim() || creatingGroup) ? "none" : "0 2px 8px rgba(28,25,23,0.3)",
           }}
-          onMouseEnter={e => { if (newName.trim() && !creatingGroup) { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.4)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-          onMouseLeave={e => { if (newName.trim() && !creatingGroup) { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; } }}
-          >{creatingGroup ? "Creating..." : "Create Group"}</button>
+          onMouseEnter={e => { if (newName.trim() && !creatingGroup) { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+          onMouseLeave={e => { if (newName.trim() && !creatingGroup) { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; } }}
+          >{creatingGroup ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <span>Creating</span>
+              <span className="loading-dots" style={{ display: "inline-flex", gap: 2 }}>
+                <span className="ld-dot">.</span>
+                <span className="ld-dot">.</span>
+                <span className="ld-dot">.</span>
+              </span>
+            </span>
+          ) : "Create Group"}</button>
         </div>
       )}
 
@@ -2712,14 +2757,14 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                         style={{ ...fld, flex: 1, textTransform: "lowercase" }}
                       />
                       <button onClick={() => sendInvite(g.id)} style={{
-                        padding: "10px 14px", background: "#000000", color: "white", border: "none",
+                        padding: "10px 14px", background: g.color, color: "white", border: "none",
                         borderRadius: "var(--rs)", cursor: "pointer", flexShrink: 0,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "box-shadow 0.15s ease, transform 0.15s ease",
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+                        transition: "box-shadow 0.15s ease, transform 0.15s ease, filter 0.15s ease",
+                        boxShadow: `0 2px 8px ${g.color}55`,
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.4)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.25)"; e.currentTarget.style.transform = "translateY(0)"; }}
+                      onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 4px 14px ${g.color}80`; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.filter = "brightness(0.92)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.boxShadow = `0 2px 8px ${g.color}55`; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.filter = "brightness(1)"; }}
                       >{I.userPlus}</button>
                     </div>
                   )}
@@ -2884,15 +2929,15 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
       <button onClick={toggleForm} data-tour="fab-group" className="fab-group" style={{
         position: "fixed", bottom: `calc(80px + env(safe-area-inset-bottom, 0px))`,
         width: 54, height: 54, borderRadius: "50%", border: "none",
-        background: "#000000", color: "white",
+        background: "#1C1917", color: "white",
         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 6px 22px rgba(0,0,0,0.4)",
+        boxShadow: "0 6px 22px rgba(28,25,23,0.45)",
         transition: "transform 0.25s ease, box-shadow 0.15s ease",
         transform: showForm ? "rotate(45deg) scale(1.05)" : "rotate(0) scale(1)",
         zIndex: 90,
       }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 10px 30px rgba(0,0,0,0.55)"}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 22px rgba(0,0,0,0.4)"}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 10px 30px rgba(28,25,23,0.55)"}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 22px rgba(28,25,23,0.45)"}
       >{I.plus}</button>
     </div>
   );

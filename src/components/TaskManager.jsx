@@ -1194,10 +1194,13 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
 
       {/* upcoming due task spotlight */}
       <div data-tour="upcoming-spotlight" className="fu" style={{
-        background: "var(--bg-dark)", borderRadius: "var(--r)", padding: "18px 20px",
+        background: "linear-gradient(135deg, #FDE68A 0%, #FCD34D 100%)",
+        borderRadius: "var(--r)", padding: "18px 20px",
         marginBottom: 18, position: "relative", overflow: "hidden", animationDelay: "0.04s",
         minHeight: 88, touchAction: upcomingTasks.length > 1 ? "pan-y" : "auto",
         cursor: upcomingTasks.length > 1 ? "grab" : "default",
+        border: "1px solid #FBBF24",
+        boxShadow: "0 4px 16px rgba(217,119,6,0.15)",
       }}
       onTouchStart={e => setTouchStart(e.targetTouches[0].clientX)}
       onTouchMove={e => setTouchEnd(e.targetTouches[0].clientX)}
@@ -1209,16 +1212,16 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
       >
         {upcomingTasks.length === 0 ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ color: "var(--accent)", flexShrink: 0 }}>{I.check}</div>
+            <div style={{ color: "#92400E", flexShrink: 0 }}>{I.check}</div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-inv)", marginBottom: 2 }}>All clear!</p>
-              <p style={{ fontSize: 12, color: "rgba(250,248,245,0.5)" }}>No upcoming tasks due</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1C1917", marginBottom: 2 }}>All clear!</p>
+              <p style={{ fontSize: 12, color: "rgba(28,25,23,0.6)" }}>No upcoming tasks due</p>
             </div>
           </div>
         ) : (
           <>
             {/* counter */}
-            <div style={{ position: "absolute", top: 14, right: 16, fontSize: 10, color: "rgba(250,248,245,0.3)", fontWeight: 600 }}>
+            <div style={{ position: "absolute", top: 14, right: 16, fontSize: 10, color: "rgba(28,25,23,0.45)", fontWeight: 600 }}>
               {(ti % upcomingTasks.length) + 1}/{upcomingTasks.length}
             </div>
             <div key={ti} style={{ animation: upcomingTasks.length > 1 ? "fq 10s ease both" : "none" }}>
@@ -1226,19 +1229,19 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                 <span style={{
                   padding: "2px 8px", borderRadius: 5, fontSize: 9, fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.04em",
-                  background: currentTask?.status === "missed" ? "rgba(220,38,38,0.25)" : "rgba(217,119,6,0.2)",
-                  color: currentTask?.status === "missed" ? "#FCA5A5" : "var(--accent)",
+                  background: currentTask?.status === "missed" ? "rgba(220,38,38,0.2)" : "rgba(180,83,9,0.18)",
+                  color: currentTask?.status === "missed" ? "#991B1B" : "#92400E",
                 }}>{currentTask?.status === "missed" ? "Overdue" : "Upcoming"}</span>
                 <span style={{
                   padding: "2px 8px", borderRadius: 5, fontSize: 9, fontWeight: 700,
-                  textTransform: "uppercase", background: "rgba(250,248,245,0.08)", color: "rgba(250,248,245,0.5)",
+                  textTransform: "uppercase", background: "rgba(28,25,23,0.1)", color: "rgba(28,25,23,0.65)",
                 }}>{currentTask?.priority}</span>
               </div>
               <p style={{
-                fontSize: 15, fontWeight: 600, color: "var(--text-inv)",
+                fontSize: 15, fontWeight: 600, color: "#1C1917",
                 lineHeight: 1.4, marginBottom: 6,
               }}>{currentTask?.title}</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "rgba(250,248,245,0.45)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "rgba(28,25,23,0.6)" }}>
                 {currentTask?.dueDate ? (
                   <>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -1256,7 +1259,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                   <>
                     <span style={{
                       padding: "2px 8px", borderRadius: 5, fontSize: 9, fontWeight: 700,
-                      textTransform: "uppercase", background: "rgba(250,248,245,0.1)", color: "rgba(250,248,245,0.65)",
+                      textTransform: "uppercase", background: "rgba(28,25,23,0.1)", color: "rgba(28,25,23,0.7)",
                     }}>Anytime</span>
                     <span>·</span>
                   </>
@@ -1270,7 +1273,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                 {upcomingTasks.map((_, i) => (
                   <div key={i} style={{
                     width: i === (ti % upcomingTasks.length) ? 16 : 4, height: 4, borderRadius: 100,
-                    background: i === (ti % upcomingTasks.length) ? "var(--accent)" : "rgba(250,248,245,0.15)",
+                    background: i === (ti % upcomingTasks.length) ? "#D97706" : "rgba(28,25,23,0.2)",
                     transition: "all 0.3s ease",
                   }} />
                 ))}

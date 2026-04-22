@@ -1468,7 +1468,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
       }}>
         {timeFilters.map(f => {
           const active = timeFilter === f;
-          const label = tab === "add" && f === "all" ? "Anytime" : f;
+          const label = tab === "add" && f === "all" ? "Custom" : f;
           return (
             <button key={f} onClick={() => setTimeFilter(f)} style={{
               flex: 1,
@@ -1487,7 +1487,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
 
       <div key={`${tab}-${timeFilter}`} className="tab-content">
       {tab === "add" ? (
-        <AddTaskForm dispatch={dispatch} groups={groups} setTab={setTab} defaultTime={timeFilter !== "all" ? timeFilter : ""} existingTasks={tasks} showToast={showToast} userName={userName} />
+        <AddTaskForm dispatch={dispatch} groups={groups} setTab={setTab} defaultTime={timeFilter !== "all" ? timeFilter : "custom"} existingTasks={tasks} showToast={showToast} userName={userName} />
       ) : (
         <>
           {/* hide completed toggle */}
@@ -1679,6 +1679,40 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
   const defaults = computeRescheduleDefaults();
   const [newDueDate, setNewDueDate] = useState(defaults.date);
   const [newDueTime, setNewDueTime] = useState(defaults.time);
+
+  // Min/max for the reschedule date picker based on task's time bucket
+  const rescheduleBounds = () => {
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmtD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const now = new Date();
+    const min = fmtD(now);
+    let max = "";
+    switch (task.time) {
+      case "daily":
+        max = fmtD(now);
+        break;
+      case "weekly": {
+        const d = new Date(now);
+        d.setDate(now.getDate() + (7 - now.getDay()));
+        max = fmtD(d);
+        break;
+      }
+      case "monthly": {
+        const d = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        max = fmtD(d);
+        break;
+      }
+      case "quarterly": {
+        const q = Math.ceil((now.getMonth() + 1) / 3);
+        const d = new Date(now.getFullYear(), q * 3, 0);
+        max = fmtD(d);
+        break;
+      }
+      default:
+        max = ""; // custom / anytime: no upper bound
+    }
+    return { min, max };
+  };
 
   // Refresh defaults when the reschedule popup opens
   useEffect(() => {
@@ -1896,16 +1930,43 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   New Due Date
                 </label>
-                <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} style={{
-                  width: "100%", padding: "12px 14px", border: "1.5px solid var(--border)",
-                  borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
-                  background: "var(--bg-card)", color: "var(--text)", outline: "none",
-                  boxSizing: "border-box", appearance: "none", WebkitAppearance: "none",
-                  minHeight: 44,
-                }}
-                onFocus={e => e.target.style.borderColor = "var(--accent)"}
-                onBlur={e => e.target.style.borderColor = "var(--border)"}
-                />
+                {(() => {
+                  const b = rescheduleBounds();
+                  return (
+                    <>
+                      <input
+                        type="date"
+                        value={newDueDate}
+                        min={b.min}
+                        max={b.max || undefined}
+                        onChange={e => {
+                          const val = e.target.value;
+                          let clamped = val;
+                          if (val && val < b.min) clamped = b.min;
+                          if (val && b.max && val > b.max) clamped = b.max;
+                          setNewDueDate(clamped);
+                        }}
+                        style={{
+                          width: "100%", padding: "12px 14px", border: "1.5px solid var(--border)",
+                          borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
+                          background: "var(--bg-card)", color: "var(--text)", outline: "none",
+                          boxSizing: "border-box", appearance: "none", WebkitAppearance: "none",
+                          minHeight: 44,
+                        }}
+                        onFocus={e => e.target.style.borderColor = "var(--accent)"}
+                        onBlur={e => e.target.style.borderColor = "var(--border)"}
+                      />
+                      {task.time !== "custom" && task.time && b.max && (
+                        <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4 }}>
+                          {task.time === "daily" && "Must be today"}
+                          {task.time === "weekly" && `Within this week (by ${b.max})`}
+                          {task.time === "monthly" && `Within this month (by ${b.max})`}
+                          {task.time === "quarterly" && `Within this quarter (by ${b.max})`}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
@@ -2084,16 +2145,61 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         const eoq = new Date(now.getFullYear(), q * 3, 0);
         return fmtDate(eoq);
       }
+      case "all": // Custom — default to today
       default:
-        return "";
+        return fmtDate(now);
     }
   };
 
-  const isNoDue = !defaultTime;
+  // Maximum selectable due date per time bucket.
+  // daily → today, weekly → end of current week (Sunday),
+  // monthly → last day of current month, quarterly → last day of current quarter,
+  // all/custom → no limit.
+  const getMaxDue = (time) => {
+    const now = new Date();
+    switch (time) {
+      case "daily":
+        return fmtDate(now);
+      case "weekly": {
+        const sun = new Date(now);
+        sun.setDate(now.getDate() + (7 - now.getDay()));
+        return fmtDate(sun);
+      }
+      case "monthly": {
+        const eom = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return fmtDate(eom);
+      }
+      case "quarterly": {
+        const q = Math.ceil((now.getMonth() + 1) / 3);
+        const eoq = new Date(now.getFullYear(), q * 3, 0);
+        return fmtDate(eoq);
+      }
+      default:
+        return ""; // no max for custom
+    }
+  };
+
+  // Minimum = today (can't create tasks in the past)
+  const getMinDue = () => {
+    const now = new Date();
+    return fmtDate(now);
+  };
+
+  const fmtTimeHM = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  // Default time of day per bucket: for custom → current time; for others → 23:59 (end of day)
+  const getDefaultTime = (time) => {
+    if (time === "custom") {
+      const now = new Date();
+      return fmtTimeHM(now);
+    }
+    return "23:59";
+  };
+
   const initTime = defaultTime || "daily";
   const [form, setForm] = useState({
     title: "", desc: "", group: groups[0]?.name || "", time: initTime, priority: "medium",
-    dueDate: isNoDue ? "" : getDefaultDue(initTime), dueTime: isNoDue ? "" : "23:59",
+    dueDate: getDefaultDue(initTime), dueTime: getDefaultTime(initTime),
   });
   const [errors, setErrors] = useState({});
   const [dueDateManual, setDueDateManual] = useState(false);
@@ -2104,14 +2210,13 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
 
   // Sync form when time filter pill changes
   useEffect(() => {
-    const noDue = !defaultTime;
     const newTime = defaultTime || "daily";
     if (!dueDateManual) {
       setForm(prev => ({
         ...prev,
         time: newTime,
-        dueDate: noDue ? "" : getDefaultDue(newTime),
-        dueTime: noDue ? "" : "23:59",
+        dueDate: getDefaultDue(newTime),
+        dueTime: getDefaultTime(newTime),
       }));
     } else {
       setForm(prev => ({ ...prev, time: newTime }));
@@ -2126,6 +2231,17 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     }
     if (!form.priority) e.priority = "Select priority";
     if (!form.group) e.group = "Select a group";
+    // Due date range check per bucket
+    if (form.dueDate) {
+      const minD = getMinDue();
+      const maxD = getMaxDue(form.time);
+      if (form.dueDate < minD) {
+        e.dueDate = "Due date cannot be in the past";
+      } else if (maxD && form.dueDate > maxD) {
+        const bucketLabel = { daily: "today", weekly: "this week", monthly: "this month", quarterly: "this quarter" }[form.time];
+        e.dueDate = `${form.time.charAt(0).toUpperCase() + form.time.slice(1)} tasks must be due within ${bucketLabel}`;
+      }
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -2142,7 +2258,7 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     dispatch({ type: "ADD_TASK", payload: { ...form, groupId: selectedGroup?.id, title: form.title.trim(), status: "pending", dueDate: form.dueDate || null, dueTime: form.dueTime || null } });
     showToast("Task created successfully", "green");
     const resetTime = defaultTime || "daily";
-    setForm({ title: "", desc: "", group: groups[0]?.name || "", time: resetTime, priority: "medium", dueDate: isNoDue ? "" : getDefaultDue(resetTime), dueTime: isNoDue ? "" : "23:59" });
+    setForm({ title: "", desc: "", group: groups[0]?.name || "", time: resetTime, priority: "medium", dueDate: getDefaultDue(resetTime), dueTime: getDefaultTime(resetTime) });
     setErrors({});
     setDueDateManual(false);
     setShowCreateConfirm(false);
@@ -2371,18 +2487,47 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
             )}
           </div>
         </div>
-        {!isNoDue && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
-              <label style={lbl}>Due Date</label>
-              <input type="date" value={form.dueDate} onChange={e => { setForm({...form, dueDate: e.target.value}); setDueDateManual(true); }} style={fld} />
-            </div>
-            <div>
-              <label style={lbl}>Due Time</label>
-              <input type="time" value={form.dueTime || ""} onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }} style={fld} />
-            </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <label style={lbl}>Due Date</label>
+            <input
+              type="date"
+              value={form.dueDate}
+              min={getMinDue()}
+              max={getMaxDue(form.time) || undefined}
+              onChange={e => {
+                const val = e.target.value;
+                const minD = getMinDue();
+                const maxD = getMaxDue(form.time);
+                // Clamp to allowed range
+                let clamped = val;
+                if (val && val < minD) clamped = minD;
+                if (val && maxD && val > maxD) clamped = maxD;
+                setForm({ ...form, dueDate: clamped });
+                setDueDateManual(true);
+                if (errors.dueDate) setErrors(pr => ({ ...pr, dueDate: undefined }));
+                if (clamped !== val && val) {
+                  // Gently inform user if clamped
+                  showToast(`Due date adjusted to fit the ${form.time === "custom" ? "allowed" : form.time} range`, "red");
+                }
+              }}
+              style={errors.dueDate ? { ...fld, borderColor: "var(--red)" } : fld}
+            />
+            {errors.dueDate && <div style={{ fontSize: 10, color: "var(--red)", marginTop: 4 }}>{errors.dueDate}</div>}
+            {!errors.dueDate && form.time !== "custom" && (
+              <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4 }}>
+                {form.time === "daily" && "Must be today"}
+                {form.time === "weekly" && `Within this week (by ${getMaxDue("weekly")})`}
+                {form.time === "monthly" && `Within this month (by ${getMaxDue("monthly")})`}
+                {form.time === "quarterly" && `Within this quarter (by ${getMaxDue("quarterly")})`}
+              </div>
+            )}
           </div>
-        )}
+          <div>
+            <label style={lbl}>Due Time</label>
+            <input type="time" value={form.dueTime || ""} onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }} style={fld} />
+          </div>
+        </div>
         <button onClick={submit} style={{
           padding: "13px", background: "#1C1917", color: "white",
           border: "none", borderRadius: "var(--rs)", fontSize: 14, fontWeight: 600,

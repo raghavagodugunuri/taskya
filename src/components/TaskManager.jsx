@@ -247,7 +247,7 @@ function LoginPage({ onLogin }) {
           <input
             value={email} onChange={e => { setEmail(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, "")); setError(""); }}
             onKeyDown={handleKeyDown}
-            placeholder="user_n.me"
+            placeholder="raghava"
             autoCapitalize="none" autoCorrect="off"
             style={{...fld, textTransform: "lowercase"}}
             onFocus={e => e.target.style.borderColor = "var(--accent)"}
@@ -1771,11 +1771,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 text={task.dueTime}
               />}
               {task.rescheduled && !isMissed && (
-                <span style={{
-                  padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700,
-                  background: "var(--accent-lt)", color: "var(--accent)",
-                  textTransform: "uppercase", letterSpacing: "0.04em",
-                }}>Rescheduled</span>
+                <Pill text="Rescheduled" />
               )}
               {task.delayed && isDone && task.dueDate && (() => {
                 // If no dueTime was set, treat due as end of day (23:59:59)
@@ -2311,13 +2307,12 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
                 const colors = { high: { color: "var(--red)", bg: "var(--red-lt)" }, medium: { color: "var(--accent)", bg: "var(--accent-lt)" }, low: { color: "var(--green)", bg: "var(--green-lt)" } };
                 const c = colors[form.priority] || colors.medium;
                 return (
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
-                    <span style={{ textTransform: "capitalize" }}>{form.priority}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
                     <span style={{
-                      fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                      background: c.bg, color: c.color,
-                      textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
-                    }}>{form.priority}</span>
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: c.color, flexShrink: 0,
+                    }} />
+                    <span style={{ textTransform: "capitalize" }}>{form.priority}</span>
                   </span>
                 );
               })() : <span style={{ color: "var(--text2)" }}>Select priority</span>}
@@ -2356,19 +2351,18 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
                         background: selected ? "var(--bg)" : "transparent",
                         color: "var(--text)", fontFamily: "inherit", fontSize: 13,
                         cursor: "pointer", textAlign: "left",
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        gap: 8, transition: "background 0.1s ease",
+                        display: "flex", alignItems: "center",
+                        gap: 10, transition: "background 0.1s ease",
                         borderBottom: idx === arr.length - 1 ? "none" : "1px solid var(--border)",
                       }}
                       onMouseEnter={e => { if (!selected) e.currentTarget.style.background = "var(--bg)"; }}
                       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = "transparent"; }}
                       >
-                        <span style={{ fontWeight: selected ? 600 : 500 }}>{p.label}</span>
                         <span style={{
-                          fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
-                          background: p.bg, color: p.color,
-                          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
-                        }}>{p.label}</span>
+                          width: 8, height: 8, borderRadius: "50%",
+                          background: p.color, flexShrink: 0,
+                        }} />
+                        <span style={{ fontWeight: selected ? 600 : 500 }}>{p.label}</span>
                       </button>
                     );
                   })}

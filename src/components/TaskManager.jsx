@@ -2145,16 +2145,15 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         const eoq = new Date(now.getFullYear(), q * 3, 0);
         return fmtDate(eoq);
       }
-      case "all": // Custom — default to today
+      case "custom":
+      case "all":
+        return ""; // Let user pick — shows "Select date" placeholder
       default:
         return fmtDate(now);
     }
   };
 
   // Maximum selectable due date per time bucket.
-  // daily → today, weekly → end of current week (Sunday),
-  // monthly → last day of current month, quarterly → last day of current quarter,
-  // all/custom → no limit.
   const getMaxDue = (time) => {
     const now = new Date();
     switch (time) {
@@ -2187,12 +2186,9 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
 
   const fmtTimeHM = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-  // Default time of day per bucket: for custom → current time; for others → 23:59 (end of day)
+  // Default time of day per bucket. Custom → empty (user picks). Others → 23:59.
   const getDefaultTime = (time) => {
-    if (time === "custom") {
-      const now = new Date();
-      return fmtTimeHM(now);
-    }
+    if (time === "custom" || time === "all") return "";
     return "23:59";
   };
 
@@ -2231,6 +2227,10 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     }
     if (!form.priority) e.priority = "Select priority";
     if (!form.group) e.group = "Select a group";
+    // Custom tasks must have a date selected
+    if ((form.time === "custom" || form.time === "all") && !form.dueDate) {
+      e.dueDate = "Please select a due date";
+    }
     // Due date range check per bucket
     if (form.dueDate) {
       const minD = getMinDue();
@@ -2490,29 +2490,41 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
             <label style={lbl}>Due Date</label>
-            <input
-              type="date"
-              value={form.dueDate}
-              min={getMinDue()}
-              max={getMaxDue(form.time) || undefined}
-              onChange={e => {
-                const val = e.target.value;
-                const minD = getMinDue();
-                const maxD = getMaxDue(form.time);
-                // Clamp to allowed range
-                let clamped = val;
-                if (val && val < minD) clamped = minD;
-                if (val && maxD && val > maxD) clamped = maxD;
-                setForm({ ...form, dueDate: clamped });
-                setDueDateManual(true);
-                if (errors.dueDate) setErrors(pr => ({ ...pr, dueDate: undefined }));
-                if (clamped !== val && val) {
-                  // Gently inform user if clamped
-                  showToast(`Due date adjusted to fit the ${form.time === "custom" ? "allowed" : form.time} range`, "red");
-                }
-              }}
-              style={errors.dueDate ? { ...fld, borderColor: "var(--red)" } : fld}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type="date"
+                value={form.dueDate}
+                min={getMinDue()}
+                max={getMaxDue(form.time) || undefined}
+                onChange={e => {
+                  const val = e.target.value;
+                  const minD = getMinDue();
+                  const maxD = getMaxDue(form.time);
+                  // Clamp to allowed range
+                  let clamped = val;
+                  if (val && val < minD) clamped = minD;
+                  if (val && maxD && val > maxD) clamped = maxD;
+                  setForm({ ...form, dueDate: clamped });
+                  setDueDateManual(true);
+                  if (errors.dueDate) setErrors(pr => ({ ...pr, dueDate: undefined }));
+                  if (clamped !== val && val) {
+                    showToast(`Due date adjusted to fit the ${form.time === "custom" ? "allowed" : form.time} range`, "red");
+                  }
+                }}
+                style={{
+                  ...(errors.dueDate ? { ...fld, borderColor: "var(--red)" } : fld),
+                  // Make native text invisible when empty so our overlay shows instead
+                  color: form.dueDate ? "var(--text)" : "transparent",
+                }}
+              />
+              {!form.dueDate && (
+                <span style={{
+                  position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
+                  fontSize: 14, color: "var(--text2)", pointerEvents: "none",
+                  fontFamily: "inherit",
+                }}>Select date</span>
+              )}
+            </div>
             {errors.dueDate && <div style={{ fontSize: 10, color: "var(--red)", marginTop: 4 }}>{errors.dueDate}</div>}
             {!errors.dueDate && form.time !== "custom" && (
               <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4 }}>
@@ -2525,7 +2537,24 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
           </div>
           <div>
             <label style={lbl}>Due Time</label>
-            <input type="time" value={form.dueTime || ""} onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }} style={fld} />
+            <div style={{ position: "relative" }}>
+              <input
+                type="time"
+                value={form.dueTime || ""}
+                onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }}
+                style={{
+                  ...fld,
+                  color: form.dueTime ? "var(--text)" : "transparent",
+                }}
+              />
+              {!form.dueTime && (
+                <span style={{
+                  position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
+                  fontSize: 14, color: "var(--text2)", pointerEvents: "none",
+                  fontFamily: "inherit",
+                }}>Select time</span>
+              )}
+            </div>
           </div>
         </div>
         <button onClick={submit} style={{

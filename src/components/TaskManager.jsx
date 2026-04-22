@@ -1194,7 +1194,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
 
       {/* upcoming due task spotlight */}
       <div data-tour="upcoming-spotlight" className="fu" style={{
-        background: "linear-gradient(135deg, #FDE68A 0%, #FCD34D 100%)",
+        background: "linear-gradient(135deg, #FFFBEB 0%, #FEF9E7 100%)",
         borderRadius: "var(--r)", padding: "18px 20px",
         marginBottom: 18, position: "relative", overflow: "hidden", animationDelay: "0.04s",
         minHeight: 88, touchAction: upcomingTasks.length > 1 ? "pan-y" : "auto",

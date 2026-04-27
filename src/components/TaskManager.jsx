@@ -1,5 +1,4 @@
 import { useState, useEffect, useReducer, useRef } from "react";
-import ReactDOM from "react-dom";
 
 /* ───────────────────────── main ───────────────────────── */
 
@@ -118,6 +117,9 @@ const I = {
   quote: <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" opacity="0.12"><path d="M4.583 17.321C3.553 16.227 3 15 3 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311C9.591 11.689 11 13.185 11 15a3 3 0 11-6 0c0-.258.026-.51.076-.753zm10 0C13.553 16.227 13 15 13 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311C19.591 11.689 21 13.185 21 15a3 3 0 11-6 0c0-.258.026-.51.076-.753z"/></svg>,
   empty: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" opacity="0.18"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12l2 2 4-4"/></svg>,
   userPlus: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>,
+  gear: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+  bell: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
+  bellOff: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 01-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0118 8"/><path d="M6.26 6.26A5.86 5.86 0 006 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 00-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
 };
 
 /* ───────────────────────── main ───────────────────────── */
@@ -175,9 +177,7 @@ function LoginPage({ onLogin }) {
       }
     } catch (e) {
       console.error("Auth error:", e);
-      const msg = e?.message || String(e);
-      // Show the actual error message so we can see what Supabase returned
-      setError(msg.length > 200 ? msg.substring(0, 200) : msg);
+      setError("Connection error. Please try again.");
       setLoading(false);
     }
   };
@@ -205,15 +205,9 @@ function LoginPage({ onLogin }) {
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
-        :root { color-scheme: light only; }
-        html, body {
-          background: #FFFFFF !important;
-          color: #1C1917 !important;
-          color-scheme: light only !important;
-        }
         :root {
-          --bg:#FFFFFF;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
-          --text-inv:#FFFFFF;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
+          --bg:#FAF8F5;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
+          --text-inv:#FAF8F5;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
           --green:#16A34A;--red:#DC2626;
         }
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -247,7 +241,7 @@ function LoginPage({ onLogin }) {
           <input
             value={email} onChange={e => { setEmail(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, "")); setError(""); }}
             onKeyDown={handleKeyDown}
-            placeholder="raghava"
+            placeholder="johndoe"
             autoCapitalize="none" autoCorrect="off"
             style={{...fld, textTransform: "lowercase"}}
             onFocus={e => e.target.style.borderColor = "var(--accent)"}
@@ -308,37 +302,24 @@ function LoginPage({ onLogin }) {
         )}
 
         <button onClick={handleLogin} disabled={loading} style={{
-          padding: "14px", background: loading ? "var(--text2)" : "#1C1917", color: "white",
+          padding: "14px", background: loading ? "var(--text2)" : "var(--bg-dark)", color: "var(--text-inv)",
           border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600,
           cursor: loading ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", width: "100%",
-          marginTop: 4, transition: "box-shadow 0.15s ease, transform 0.15s ease",
-          boxShadow: loading ? "none" : "0 4px 16px rgba(28,25,23,0.35)",
+          marginTop: 4, transition: "opacity 0.15s ease",
+          boxShadow: "0 4px 16px rgba(28,25,23,0.12)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}
-        onMouseEnter={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 6px 22px rgba(28,25,23,0.5)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-        onMouseLeave={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 4px 16px rgba(28,25,23,0.35)"; e.currentTarget.style.transform = "translateY(0)"; } }}
+        onMouseEnter={e => { if (!loading) e.target.style.opacity = "0.88"; }}
+        onMouseLeave={e => e.target.style.opacity = "1"}
         >
-          {loading ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-              <span>{isSignUp ? "Creating account" : "Signing in"}</span>
-              <span className="loading-dots" style={{ display: "inline-flex", gap: 2 }}>
-                <span className="ld-dot">.</span>
-                <span className="ld-dot">.</span>
-                <span className="ld-dot">.</span>
-              </span>
-            </span>
-          ) : (isSignUp ? "Create Account" : "Sign In")}
+          {loading && (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}>
+              <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/>
+            </svg>
+          )}
+          {loading ? "Please wait..." : (isSignUp ? "Create Account" : "Sign In")}
         </button>
-        <style>{`
-          @keyframes spin{to{transform:rotate(360deg)}}
-          @keyframes ldBounce {
-            0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
-            40% { opacity: 1; transform: translateY(-3px); }
-          }
-          .ld-dot { animation: ldBounce 1.4s ease-in-out infinite both; font-weight: 900; font-size: 18px; line-height: 1; }
-          .ld-dot:nth-child(2) { animation-delay: 0.18s; }
-          .ld-dot:nth-child(3) { animation-delay: 0.36s; }
-        `}</style>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
         <p style={{ fontSize: 12, color: "var(--text2)", textAlign: "center", marginTop: 4 }}>
           {isSignUp ? (
@@ -363,6 +344,16 @@ function writeLS(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
+const DEFAULT_NOTIF_SETTINGS = {
+  enabled: true,
+  morning_summary: true,
+  morning_time: "09:00",
+  evening_reminder: true,
+  evening_time: "18:00",
+  default_pre_due: "1h",
+  browser_permission_granted: false,
+};
+
 export default function TaskManager() {
   const [loggedIn, setLoggedIn] = useState(() => readLS("taskya_loggedIn", false));
   const [userName, setUserName] = useState(() => readLS("taskya_userName", ""));
@@ -370,93 +361,95 @@ export default function TaskManager() {
   const [invitations, setInvitations] = useState([]);
   const [allTasks, setAllTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [notifSettings, setNotifSettings] = useState(DEFAULT_NOTIF_SETTINGS);
+
+  // Register service worker for notifications
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
+
+  // Handle URL action params (from notification clicks)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const taskId = params.get("taskNotify");
+    const action = params.get("action");
+    if (taskId && action) {
+      writeLS("taskya_pending_action", { taskId, action });
+      const url = new URL(window.location.href);
+      url.searchParams.delete("taskNotify");
+      url.searchParams.delete("action");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, []);
 
   // Load all data from Supabase on mount / login
   const loadData = async (uname) => {
+    setLoading(true);
     try {
-      // 1. Ensure user has a default "My Group" — deterministic ID
-      const myGroupId = `mygroup_${uname}`;
-      try {
-        await dbInsert("taskya_groups", { id: myGroupId, name: "My Group", color: "#D97706", created_by: uname, is_default: true });
-      } catch (e) { /* already exists — fine */ }
-      try {
-        await dbInsert("taskya_group_members", { group_id: myGroupId, username: uname });
-      } catch (e) { /* already a member — fine */ }
+      // 0. Load user row for notification settings
+      const userRows = await dbGet("taskya_users", { username: uname });
+      if (userRows && userRows[0] && userRows[0].notification_settings) {
+        setNotifSettings({ ...DEFAULT_NOTIF_SETTINGS, ...userRows[0].notification_settings });
+      }
 
-      // 2. Load user's group memberships
+      // 1. Get group IDs this user belongs to
       const memberRows = await dbGet("taskya_group_members", { username: uname });
       const memberGroupIds = (Array.isArray(memberRows) ? memberRows : []).map(m => m.group_id);
 
-      // 3. Load each group individually (more reliable than or= queries)
       let loadedGroups = [];
-      for (const gid of memberGroupIds) {
-        const groupArr = await dbGet("taskya_groups", { id: gid });
-        if (groupArr && groupArr.length > 0) {
-          const g = groupArr[0];
-          const gMembers = await dbGet("taskya_group_members", { group_id: gid });
+      if (memberGroupIds.length > 0) {
+        // 2. Load those groups
+        const groupsRaw = await dbGetIn("taskya_groups", "id", memberGroupIds);
+        // 3. Load members for each group
+        for (const g of (groupsRaw || [])) {
+          const gMembers = await dbGet("taskya_group_members", { group_id: g.id });
           loadedGroups.push({
-            id: g.id, name: g.name, color: g.color,
-            createdBy: g.created_by, isDefault: g.is_default, is_default: g.is_default,
-            created_by: g.created_by,
-            members: (Array.isArray(gMembers) ? gMembers : []).map(m => m.username),
+            ...g, members: (gMembers || []).map(m => m.username),
+            createdBy: g.created_by, isDefault: g.is_default,
           });
         }
       }
+
+      // 4. Create "My Group" if user has no default group yet
+      const hasDefault = loadedGroups.some(g => g.is_default && g.created_by === uname);
+      if (!hasDefault) {
+        const gId = `mygroup_${uname}_${Date.now()}`;
+        await dbInsert("taskya_groups", { id: gId, name: "My Group", color: "#D97706", created_by: uname, is_default: true });
+        await dbInsert("taskya_group_members", { group_id: gId, username: uname });
+        loadedGroups.push({ id: gId, name: "My Group", color: "#D97706", createdBy: uname, isDefault: true, is_default: true, created_by: uname, members: [uname] });
+      }
       setGroups(loadedGroups);
 
-      // 4. Load tasks for each group individually
+      // 5. Load all tasks for user's groups
+      const allGroupIds = loadedGroups.map(g => g.id);
       let loadedTasks = [];
-      for (const gid of memberGroupIds) {
-        const tasksRaw = await dbGet("taskya_tasks", { group_id: gid });
-        if (Array.isArray(tasksRaw)) {
-          for (const t of tasksRaw) {
-            loadedTasks.push({
-              ...t, id: t.id, group: t.group_name, groupId: t.group_id,
-              createdBy: t.created_by, createdAt: t.created_at,
-              dueDate: t.due_date, dueTime: t.due_time,
-              completedAt: t.completed_at, activity: t.activity || [],
-            });
-          }
-        }
+      if (allGroupIds.length > 0) {
+        const tasksRaw = await dbGetIn("taskya_tasks", "group_id", allGroupIds);
+        loadedTasks = (tasksRaw || []).map(t => ({
+          ...t, id: t.id, group: t.group_name, groupId: t.group_id,
+          createdBy: t.created_by, createdAt: t.created_at,
+          dueDate: t.due_date, dueTime: t.due_time,
+          completedAt: t.completed_at, activity: t.activity || [],
+        }));
       }
       setAllTasks(loadedTasks);
 
-      // 5. Load invitations — both RECEIVED (to_user=me) and SENT (from_user=me)
-      const received = await dbGet("taskya_invitations", { to_user: uname });
-      const sent = await dbGet("taskya_invitations", { from_user: uname });
-      const allInvs = [...(Array.isArray(received) ? received : []), ...(Array.isArray(sent) ? sent : [])];
-      // De-dupe by id
-      const seenIds = new Set();
-      const merged = [];
-      for (const inv of allInvs) {
-        if (!seenIds.has(inv.id)) {
-          seenIds.add(inv.id);
-          merged.push(inv);
-        }
-      }
-      setInvitations(merged.map(inv => ({
+      // 6. Load invitations sent to this user
+      const invRows = await dbGet("taskya_invitations", { to_user: uname });
+      setInvitations((invRows || []).map(inv => ({
         id: inv.id, groupId: inv.group_id, groupName: inv.group_name,
         from: inv.from_user, to: inv.to_user, status: inv.status,
       })));
 
     } catch (e) { console.error("Load error:", e); }
+    setLoading(false);
   };
 
-  // Initial load + auto-refresh polling every 8 seconds for cross-device sync
   useEffect(() => {
-    if (loggedIn && userName) {
-      setLoading(true);
-      loadData(userName).then(() => setLoading(false));
-
-      // Poll every 8 seconds to sync tasks and invitations across devices
-      const pollInterval = setInterval(() => {
-        loadData(userName);
-      }, 8000);
-
-      return () => clearInterval(pollInterval);
-    } else {
-      setLoading(false);
-    }
+    if (loggedIn && userName) { loadData(userName); }
+    else { setLoading(false); }
   }, [loggedIn, userName]);
 
   // Persist session locally
@@ -482,7 +475,7 @@ export default function TaskManager() {
         fontFamily: "'DM Sans', sans-serif", background: "var(--bg)",
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12,
       }}>
-        <style>{`:root{--bg:#FFFFFF;--accent:#D97706;}`}</style>
+        <style>{`:root{--bg:#FAF8F5;--accent:#D97706;}`}</style>
         <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 72, height: 72, borderRadius: 18, marginBottom: 8 }} />
         <div style={{ width: 36, height: 36, border: "3px solid #E7E1DA", borderTop: "3px solid var(--accent)", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -499,61 +492,178 @@ export default function TaskManager() {
     groups={groups} setGroups={setGroups}
     invitations={invitations} setInvitations={setInvitations}
     allTasks={allTasks} setAllTasks={setAllTasks}
-    reloadData={() => loadData(userName)} />;
+    reloadData={() => loadData(userName)}
+    notifSettings={notifSettings} setNotifSettings={setNotifSettings} />;
 }
 
-function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvitations, allTasks, setAllTasks, reloadData }) {
+function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvitations, allTasks, setAllTasks, reloadData, notifSettings, setNotifSettings }) {
   const [page, setPage] = useState("dashboard");
   const [mounted, setMounted] = useState(false);
-  const [tourStep, setTourStep] = useState(null);
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+  const [notifPermission, setNotifPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "default"
+  );
+  const [globalToast, setGlobalToast] = useState(null);
+  const firedNotifRef = useRef({});
 
-  // Start tour on first login (checks localStorage flag per user)
-  useEffect(() => {
-    const key = `taskya_tour_seen_${userName}`;
-    const seen = localStorage.getItem(key);
-    if (!seen) {
-      setTimeout(() => setTourStep(0), 600);
-    }
-  }, [userName]);
-
-  const endTour = () => {
-    localStorage.setItem(`taskya_tour_seen_${userName}`, "1");
-    setTourStep(null);
+  const showGlobalToast = (msg, type = "dark") => {
+    setGlobalToast({ message: msg, type });
+    setTimeout(() => setGlobalToast(null), 3000);
   };
-  const nextTour = () => setTourStep(s => s + 1);
 
-  useEffect(() => {
-    setMounted(true);
-    // Force light mode on the document (in case browser/OS is in dark mode)
-    let meta = document.querySelector('meta[name="color-scheme"]');
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.name = "color-scheme";
-      document.head.appendChild(meta);
-    }
-    meta.content = "light";
-    document.documentElement.style.colorScheme = "light";
-    document.body.style.background = "#FFFFFF";
-    document.body.style.color = "#1C1917";
-  }, []);
+  // Save notif settings to Supabase
+  const saveNotifSettings = async (newSettings) => {
+    setNotifSettings(newSettings);
+    try {
+      await dbUpdate("taskya_users", { notification_settings: newSettings }, { username: userName });
+    } catch (e) { console.error("Failed to save notif settings", e); }
+  };
 
-  // Smoothly scroll focused inputs into view when virtual keyboard appears
+  useEffect(() => { setMounted(true); }, []);
+
+  // Handle pending action from notification click (URL params stored in localStorage)
   useEffect(() => {
-    const onFocus = (e) => {
-      const el = e.target;
-      if (!el || !el.tagName) return;
-      const tag = el.tagName.toLowerCase();
-      if (tag !== "input" && tag !== "textarea" && tag !== "select") return;
-      // Delay to let keyboard start opening, then scroll element into center of visible area
-      setTimeout(() => {
-        try {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-        } catch {}
-      }, 280);
+    const pending = readLS("taskya_pending_action", null);
+    if (!pending) return;
+    writeLS("taskya_pending_action", null);
+    const { taskId, action } = pending;
+    if (!taskId || !action) return;
+
+    // Wait a tick for tasks to load
+    const t = setTimeout(() => {
+      if (action === "complete") {
+        const task = allTasks.find(t => t.id === taskId);
+        if (task && task.status !== "completed") {
+          dispatch({ type: "TOGGLE_STATUS", id: taskId });
+          showGlobalToast("Task completed via notification ✓", "green");
+        }
+      }
+      if (action === "reschedule") {
+        // Navigate to tasks page — the TaskCard reschedule is handled inline
+        setPage("tasks");
+        writeLS(`taskya_reschedule_focus_${taskId}`, true);
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [allTasks.length]);
+
+  // ── Notification engine ─────────────────────────────────
+  useEffect(() => {
+    if (!notifSettings.enabled) return;
+
+    const matchesTime = (now, timeStr, toleranceMs = 60000) => {
+      if (!timeStr) return false;
+      const [h, m] = timeStr.split(":").map(Number);
+      const target = new Date(now);
+      target.setHours(h, m, 0, 0);
+      return Math.abs(now - target) <= toleranceMs;
     };
-    document.addEventListener("focusin", onFocus);
-    return () => document.removeEventListener("focusin", onFocus);
-  }, []);
+
+    const subtractDuration = (dateMs, threshold) => {
+      const map = { "15m": 15 * 60000, "1h": 60 * 60000, "3h": 3 * 60 * 60000, "1d": 24 * 60 * 60000 };
+      return dateMs - (map[threshold] || 60 * 60000);
+    };
+
+    const fireNotification = async ({ title, body, taskId, tag }) => {
+      if (typeof Notification === "undefined") return;
+      const perm = Notification.permission;
+      if (perm !== "granted") {
+        showGlobalToast(`🔔 ${title}: ${body}`);
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        reg.showNotification(title, {
+          body,
+          icon: "/taskya-icon-192.png",
+          badge: "/taskya-badge-72.png",
+          tag: tag || `task-${taskId || Date.now()}`,
+          data: { taskId, action: "view" },
+          actions: taskId ? [
+            { action: "complete", title: "✓ Complete" },
+            { action: "reschedule", title: "📅 Reschedule" },
+            { action: "snooze", title: "💤 Snooze 15m" },
+          ] : [],
+          requireInteraction: !!taskId,
+        });
+      } catch {
+        showGlobalToast(`🔔 ${title}: ${body}`);
+      }
+    };
+
+    const tick = () => {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+
+      // Morning summary
+      if (notifSettings.morning_summary && matchesTime(now, notifSettings.morning_time)) {
+        const key = `notify_morning_${todayStr}`;
+        if (!firedNotifRef.current[key]) {
+          firedNotifRef.current[key] = true;
+          const pendingToday = allTasks.filter(t => t.status === "pending" && t.dueDate <= todayStr);
+          if (pendingToday.length > 0) {
+            fireNotification({
+              title: "Good morning ☀️",
+              body: `You have ${pendingToday.length} task${pendingToday.length > 1 ? "s" : ""} due today.`,
+              tag: `morning-${todayStr}`,
+            });
+          }
+        }
+      }
+
+      // Evening reminder
+      if (notifSettings.evening_reminder && matchesTime(now, notifSettings.evening_time)) {
+        const key = `notify_evening_${todayStr}`;
+        if (!firedNotifRef.current[key]) {
+          firedNotifRef.current[key] = true;
+          const pendingToday = allTasks.filter(t => t.status === "pending" && t.dueDate <= todayStr);
+          if (pendingToday.length > 0) {
+            fireNotification({
+              title: "Evening check-in 🌙",
+              body: `${pendingToday.length} pending task${pendingToday.length > 1 ? "s" : ""} today. Reschedule or knock them out!`,
+              tag: `evening-${todayStr}`,
+            });
+          }
+        }
+      }
+
+      // Pre-due reminders
+      const pendingTasks = allTasks.filter(t => t.status === "pending" && t.dueDate);
+      for (const task of pendingTasks) {
+        const threshold = task.notify_before || notifSettings.default_pre_due;
+        if (!threshold || threshold === "off") continue;
+        const dueStr = task.dueDate + "T" + (task.dueTime || "23:59");
+        const dueMs = new Date(dueStr).getTime();
+        const triggerMs = subtractDuration(dueMs, threshold);
+        const key = `notify_fired_${task.id}_${threshold}_${todayStr}`;
+        if (!firedNotifRef.current[key] && Math.abs(Date.now() - triggerMs) <= 65000) {
+          firedNotifRef.current[key] = true;
+          fireNotification({
+            title: `📌 Due in ${threshold}`,
+            body: `"${task.title}" is due soon.`,
+            taskId: task.id,
+            tag: `predue-${task.id}-${threshold}`,
+          });
+        }
+      }
+    };
+
+    const iv = setInterval(tick, 60000);
+    return () => clearInterval(iv);
+  }, [notifSettings, allTasks]);
+
+  // Show soft prompt once after first task is created (only if permission not asked yet)
+  const prevTaskCount = useRef(allTasks.length);
+  useEffect(() => {
+    const prev = prevTaskCount.current;
+    prevTaskCount.current = allTasks.length;
+    if (allTasks.length > prev && allTasks.length === 1) {
+      const flag = localStorage.getItem(`taskya_notif_prompted_${userName}`);
+      if (!flag && typeof Notification !== "undefined" && Notification.permission === "default") {
+        setTimeout(() => setShowNotifPrompt(true), 1500);
+      }
+    }
+  }, [allTasks.length]);
 
   // Only show tasks where the current user is a member of the task's group
   const myGroups = groups.filter(g => g.members.includes(userName));
@@ -605,10 +715,9 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       case "AUTO_MISS": {
         setAllTasks(prev => prev.map(t => {
           if (t.status !== "pending" || !t.dueDate) return t;
-          // When no time given, treat due as end of that day
-          const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59:59")).getTime();
+          const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59")).getTime();
           if (due < nowTs) {
-            const activity = [...(t.activity || []), { type: "missed", by: "Taskya", at: nowTs }];
+            const activity = [...(t.activity || []), { type: "missed", by: "system", at: nowTs }];
             dbUpdate("taskya_tasks", { status: "missed", activity }, { id: t.id });
             return { ...t, status: "missed", activity };
           }
@@ -656,15 +765,9 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
-        :root { color-scheme: light only; }
-        html, body {
-          background: #FFFFFF !important;
-          color: #1C1917 !important;
-          color-scheme: light only !important;
-        }
         :root {
-          --bg:#FFFFFF;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
-          --text-inv:#FFFFFF;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
+          --bg:#FAF8F5;--bg-card:#FFFFFF;--bg-dark:#1C1917;--text:#1C1917;--text2:#78716C;
+          --text-inv:#FAF8F5;--accent:#D97706;--accent-lt:#FEF3C7;--border:#E7E1DA;
           --green:#16A34A;--green-lt:#DCFCE7;--red:#DC2626;--red-lt:#FEE2E2;
           --blue:#2563EB;--blue-lt:#DBEAFE;--purple:#7C3AED;
           --sh:0 1px 3px rgba(28,25,23,0.04);--shm:0 4px 16px rgba(28,25,23,0.06);
@@ -696,10 +799,12 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         }}
         *{box-sizing:border-box;margin:0;padding:0;}
         ::-webkit-scrollbar{display:none;}
-        html,body{overflow-x:hidden;-webkit-text-size-adjust:100%;background:#FFFFFF !important;}
-        body{background:#FFFFFF !important;min-height:100vh;}
+        html,body{overflow-x:hidden;-webkit-text-size-adjust:100%;}
+        body{background:var(--bg);min-height:100vh;}
         @media(min-width:768px){
-          body{background:#FFFFFF !important;}
+          body{
+            background:linear-gradient(135deg, #f5f0e8 0%, #ede4d3 100%);
+          }
         }
         @keyframes fu{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         @keyframes si{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
@@ -733,18 +838,46 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         @media(min-width:480px){.fab-group{right: max(calc((100vw - 520px) / 2 + 18px), 18px);}}
         @media(min-width:768px){.fab-group{right: max(calc((100vw - 600px) / 2 + 18px), 18px);}}
         @media(min-width:1024px){.fab-group{right: max(calc((100vw - 640px) / 2 + 18px), 18px);}}
-        /* Hide scrollbar on group selector name but keep scrolling functional */
-        .gsel-name::-webkit-scrollbar { display: none; height: 0; width: 0; }
-        .gsel-name { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       <div style={{ paddingBottom: 90, minHeight: "100vh", background: "var(--bg)" }}>
-        {page === "dashboard" && <Dashboard tasks={tasks} groups={groups.filter(g => g.members.includes(userName))} userName={userName} onLogout={onLogout} setPage={setPage} />}
-        {page === "tasks" && <Tasks tasks={tasks} dispatch={dispatch} groups={groups.filter(g => g.members.includes(userName))} onLogout={onLogout} userName={userName} />}
-        {page === "groups" && <GroupsPage groups={groups} setGroups={setGroups} tasks={tasks} onLogout={onLogout} userName={userName} invitations={invitations} setInvitations={setInvitations} reloadData={reloadData} />}
+        {page === "dashboard" && <Dashboard tasks={tasks} groups={groups.filter(g => g.members.includes(userName))} userName={userName} onLogout={onLogout} setPage={setPage} onOpenSettings={() => setPage("settings")} />}
+        {page === "tasks" && <Tasks tasks={tasks} dispatch={dispatch} groups={groups.filter(g => g.members.includes(userName))} onLogout={onLogout} userName={userName} onOpenSettings={() => setPage("settings")} notifSettings={notifSettings} saveNotifSettings={saveNotifSettings} showGlobalToast={showGlobalToast} />}
+        {page === "groups" && <GroupsPage groups={groups} setGroups={setGroups} tasks={tasks} onLogout={onLogout} userName={userName} invitations={invitations} setInvitations={setInvitations} reloadData={reloadData} onOpenSettings={() => setPage("settings")} />}
+        {page === "settings" && <SettingsPage userName={userName} notifSettings={notifSettings} saveNotifSettings={saveNotifSettings} notifPermission={notifPermission} setNotifPermission={setNotifPermission} onBack={() => setPage("dashboard")} showGlobalToast={showGlobalToast} allTasks={allTasks} />}
         {/* Rewards hidden for now */}
         {/* {page === "rewards" && <Rewards tasks={tasks} onLogout={onLogout} />} */}
       </div>
+
+      {/* soft notification permission prompt */}
+      {showNotifPrompt && (
+        <NotifPermissionPrompt
+          onEnable={async () => {
+            setShowNotifPrompt(false);
+            localStorage.setItem(`taskya_notif_prompted_${userName}`, "1");
+            try {
+              const result = await Notification.requestPermission();
+              setNotifPermission(result);
+              if (result === "granted") {
+                await saveNotifSettings({ ...notifSettings, browser_permission_granted: true });
+                showGlobalToast("🔔 Reminders enabled!", "green");
+                const reg = await navigator.serviceWorker.ready;
+                reg.showNotification("🎉 TASKYA reminders are on", {
+                  body: "You'll get notified before tasks are due.",
+                  icon: "/taskya-icon-192.png",
+                  tag: "notif-test",
+                });
+              }
+            } catch {}
+          }}
+          onDismiss={() => {
+            setShowNotifPrompt(false);
+            localStorage.setItem(`taskya_notif_prompted_${userName}`, "1");
+          }}
+        />
+      )}
+
+      {globalToast && <Toast message={globalToast.message} type={globalToast.type} />}
 
       {/* ── bottom tab bar ── */}
       <nav style={{
@@ -760,7 +893,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
           const active = page === n.id;
           const pendingInvites = n.id === "groups" ? invitations.filter(inv => inv.to === userName && inv.status === "pending").length : 0;
           return (
-            <button key={n.id} data-tour={`nav-${n.id}`} onClick={() => setPage(n.id)} style={{
+            <button key={n.id} onClick={() => setPage(n.id)} style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
               padding: "6px 16px", color: active ? "var(--accent)" : "var(--text2)",
@@ -783,325 +916,13 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
           );
         })}
       </nav>
-
-      {tourStep !== null && <TourOverlay step={tourStep} onNext={nextTour} onEnd={endTour} setPage={setPage} currentPage={page} />}
-    </div>
-  );
-}
-
-/* ═══════════════════════ GUIDED TOUR ═══════════════════════ */
-
-const TOUR_STEPS = [
-  {
-    page: "dashboard",
-    target: "nav-dashboard",
-    title: "This is Home 🏠",
-    desc: "Start here. Welcome to TASKYA! Let's walk through a quick tour so you know where everything is.",
-  },
-  {
-    page: "dashboard",
-    target: "upcoming-spotlight",
-    title: "Next Due Task",
-    desc: "Your most urgent task sits here. Swipe to flip through others.",
-  },
-  {
-    page: "dashboard",
-    target: "dashboard-stats",
-    title: "Progress at a Glance",
-    desc: "Completed and pending counts. Tap a card to open the task list.",
-  },
-  {
-    page: "dashboard",
-    target: "home-groups",
-    title: "Your Groups",
-    desc: "See all your groups and their progress. Tap any row to open Groups.",
-  },
-  {
-    page: "dashboard",
-    target: "nav-tasks",
-    title: "Tasks Tab",
-    desc: "Jump here to view, add, or manage tasks.",
-  },
-  {
-    page: "tasks",
-    target: "tasks-tabs",
-    title: "View · Add · Missed",
-    desc: "Three tabs: browse tasks, create new ones, or review what you missed.",
-  },
-  {
-    page: "tasks",
-    target: "time-filters",
-    title: "Time Filters",
-    desc: "Narrow tasks down to daily, weekly, monthly, or quarterly.",
-  },
-  {
-    page: "tasks",
-    target: "tab-add",
-    title: "Create a Task",
-    desc: "Tap Add — set title, group, priority, and due date.",
-  },
-  {
-    page: "tasks",
-    target: null,
-    title: "Task Details & Activity",
-    desc: "Tap any task card — a bottom sheet slides up with full details, description, and the activity timeline (who did what, when).",
-  },
-  {
-    page: "tasks",
-    target: "nav-groups",
-    title: "Groups Tab",
-    desc: "Collaborate with others — invite members and share tasks.",
-  },
-  {
-    page: "groups",
-    target: "fab-group",
-    title: "Create a Group",
-    desc: "Tap + to make a group. Invite members by their username.",
-  },
-  {
-    page: "tasks",
-    target: null,
-    title: "You're all set! 🎉",
-    desc: "You're now on the Tasks tab. Create your first task to get started!",
-  },
-];
-
-function TourOverlay({ step, onNext, onEnd, setPage, currentPage }) {
-  const tour = TOUR_STEPS[step];
-  const isLast = step === TOUR_STEPS.length - 1;
-  const isFirst = step === 0;
-  const [targetRect, setTargetRect] = useState(null);
-
-  // Auto-navigate to the right page for each step
-  useEffect(() => {
-    if (tour && tour.page !== currentPage) {
-      setPage(tour.page);
-    }
-  }, [step]);
-
-  // Locate the target element and get its position
-  useEffect(() => {
-    if (!tour || !tour.target) { setTargetRect(null); return; }
-
-    const findEl = () => {
-      const el = document.querySelector(`[data-tour="${tour.target}"]`);
-      if (el) {
-        const r = el.getBoundingClientRect();
-        setTargetRect({ top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right });
-        // Scroll into view if needed
-        if (r.top < 0 || r.bottom > window.innerHeight) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      } else {
-        setTargetRect(null);
-      }
-    };
-
-    // Retry until element is available (after page switch)
-    findEl();
-    const t1 = setTimeout(findEl, 200);
-    const t2 = setTimeout(findEl, 500);
-    const onResize = () => findEl();
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onResize, true);
-    return () => {
-      clearTimeout(t1); clearTimeout(t2);
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onResize, true);
-    };
-  }, [step, currentPage]);
-
-  if (!tour) return null;
-
-  const handleNext = () => { if (isLast) onEnd(); else onNext(); };
-
-  // Decide tooltip placement based on target position
-  const screenH = typeof window !== "undefined" ? window.innerHeight : 700;
-  const screenW = typeof window !== "undefined" ? window.innerWidth : 400;
-  const hasTarget = targetRect !== null;
-
-  let tipTop, tipPosition, arrowPosition;
-  if (hasTarget) {
-    const targetMidY = targetRect.top + targetRect.height / 2;
-    const spaceAbove = targetRect.top;
-    const spaceBelow = screenH - targetRect.bottom;
-
-    if (spaceBelow > 220 || spaceBelow > spaceAbove) {
-      tipPosition = "below";
-      tipTop = targetRect.bottom + 16;
-      arrowPosition = "top";
-    } else {
-      tipPosition = "above";
-      tipTop = targetRect.top - 16;
-      arrowPosition = "bottom";
-    }
-  }
-
-  // Create cutout/highlight around target
-  const highlightPadding = 6;
-
-  return (
-    <div style={{
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000,
-      pointerEvents: "auto",
-    }}>
-      <style>{`
-        @keyframes tourFadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes tourSlideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes tourPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7), 0 0 0 4px rgba(37,99,235,0.2); }
-          50% { box-shadow: 0 0 0 8px rgba(37,99,235,0.0), 0 0 0 4px rgba(37,99,235,0.2); }
-        }
-        @keyframes tourBounce {
-          0%, 100% { transform: translate(-50%, 0); }
-          50% { transform: translate(-50%, 8px); }
-        }
-        @keyframes tourBounceUp {
-          0%, 100% { transform: translate(-50%, 0); }
-          50% { transform: translate(-50%, -8px); }
-        }
-      `}</style>
-
-      {/* Dark overlay with cutout around target */}
-      {hasTarget ? (
-        <svg width="100%" height="100%" style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none", animation: "tourFadeIn 0.3s ease" }}>
-          <defs>
-            <mask id="tour-mask">
-              <rect width="100%" height="100%" fill="white" />
-              <rect
-                x={targetRect.left - highlightPadding}
-                y={targetRect.top - highlightPadding}
-                width={targetRect.width + highlightPadding * 2}
-                height={targetRect.height + highlightPadding * 2}
-                rx="10"
-                fill="black"
-              />
-            </mask>
-          </defs>
-          <rect width="100%" height="100%" fill="rgba(28,25,23,0.65)" mask="url(#tour-mask)" />
-        </svg>
-      ) : (
-        <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(28,25,23,0.55)", animation: "tourFadeIn 0.3s ease",
-        }} />
-      )}
-
-      {/* Highlight border around target */}
-      {hasTarget && (
-        <div style={{
-          position: "absolute",
-          top: targetRect.top - highlightPadding,
-          left: targetRect.left - highlightPadding,
-          width: targetRect.width + highlightPadding * 2,
-          height: targetRect.height + highlightPadding * 2,
-          borderRadius: 10,
-          border: "2px solid #2563EB",
-          pointerEvents: "none",
-          animation: "tourPulse 1.8s ease-in-out infinite",
-          boxSizing: "border-box",
-        }} />
-      )}
-
-      {/* Arrow pointing to target */}
-      {hasTarget && (
-        <div style={{
-          position: "absolute",
-          left: Math.min(Math.max(targetRect.left + targetRect.width / 2, 40), screenW - 40),
-          top: tipPosition === "below"
-            ? targetRect.bottom + highlightPadding + 2
-            : targetRect.top - highlightPadding - 22,
-          transform: "translate(-50%, 0)",
-          animation: tipPosition === "below" ? "tourBounce 1.2s ease-in-out infinite" : "tourBounceUp 1.2s ease-in-out infinite",
-          pointerEvents: "none",
-        }}>
-          <svg width="28" height="20" viewBox="0 0 28 20" fill="none"
-            style={{ transform: tipPosition === "below" ? "rotate(0deg)" : "rotate(180deg)" }}>
-            <path d="M14 2 L14 18 M14 18 L6 10 M14 18 L22 10" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      )}
-
-      {/* Tooltip card */}
-      <div style={{
-        position: "absolute",
-        ...(hasTarget && tipPosition === "below"
-          ? { top: targetRect.bottom + 48 }
-          : hasTarget && tipPosition === "above"
-          ? { bottom: screenH - targetRect.top + 48 }
-          : { top: "50%", transform: "translateY(-50%)" }
-        ),
-        left: "50%",
-        transform: hasTarget ? "translateX(-50%)" : "translate(-50%, -50%)",
-        width: "calc(100% - 40px)", maxWidth: 340,
-        background: "var(--bg-card)",
-        borderRadius: 14, padding: 18,
-        boxShadow: "0 20px 60px rgba(37,99,235,0.35)",
-        border: "2px solid #2563EB",
-        animation: "tourSlideUp 0.3s ease",
-        pointerEvents: "auto",
-      }}>
-        {/* Progress dots */}
-        <div style={{ display: "flex", gap: 3, marginBottom: 12, justifyContent: "center" }}>
-          {TOUR_STEPS.map((_, i) => (
-            <div key={i} style={{
-              width: i === step ? 18 : 5, height: 5, borderRadius: 3,
-              background: i === step ? "#2563EB" : i < step ? "#93C5FD" : "#DBEAFE",
-              transition: "all 0.3s ease",
-            }} />
-          ))}
-        </div>
-
-        <h3 style={{
-          fontFamily: "'Instrument Serif', serif",
-          fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em",
-          textAlign: "center", marginBottom: 6, color: "var(--text)",
-        }}>{tour.title}</h3>
-        <p style={{
-          fontSize: 13, color: "var(--text2)", textAlign: "center",
-          lineHeight: 1.5, marginBottom: 16,
-        }}>{tour.desc}</p>
-
-        <div style={{ display: "flex", gap: 8, flexDirection: isFirst ? "column" : "row" }}>
-          {!isFirst && (
-            <button onClick={onEnd} style={{
-              flex: 1, padding: "10px", border: "1.5px solid #DBEAFE",
-              borderRadius: 9, background: "white", color: "#2563EB",
-              fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            }}>Skip</button>
-          )}
-          <button onClick={handleNext} style={{
-            flex: isFirst ? "none" : 1,
-            width: isFirst ? "100%" : "auto",
-            padding: "11px 20px", border: "none", borderRadius: 9,
-            background: "#2563EB", color: "white", fontSize: 12.5, fontWeight: 600,
-            cursor: "pointer", fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            transition: "box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease",
-            boxShadow: "0 2px 8px rgba(37,99,235,0.3)",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#1D4ED8"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(37,99,235,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "#2563EB"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(37,99,235,0.3)"; e.currentTarget.style.transform = "translateY(0)"; }}
-          >
-            {isFirst ? "Start tour" : isLast ? "Finish 🎉" : "Next"}
-            {!isLast && !isFirst && (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-            )}
-          </button>
-        </div>
-
-        <p style={{
-          fontSize: 10.5, color: "var(--text2)", textAlign: "center",
-          marginTop: 10, opacity: 0.6,
-        }}>Step {step + 1} of {TOUR_STEPS.length}</p>
-      </div>
     </div>
   );
 }
 
 /* ═══════════════════════ DASHBOARD ═══════════════════════ */
 
-function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
+function Dashboard({ tasks, groups, userName, onLogout, setPage, onOpenSettings }) {
   const completed = tasks.filter(t => t.status === "completed").length;
   const pending = tasks.filter(t => t.status === "pending").length;
   const missed = tasks.filter(t => t.status === "missed").length;
@@ -1184,23 +1005,24 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
           <div>
+            <p style={{ fontSize: 11, color: "var(--text2)", letterSpacing: "0.04em" }}>WELCOME BACK</p>
             <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
               Hi, {userName}<span style={{ color: "var(--accent)" }}>.</span>
             </h2>
           </div>
         </div>
-        <LogoutBtn onLogout={onLogout} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <GearBtn onOpenSettings={onOpenSettings} />
+          <LogoutBtn onLogout={onLogout} />
+        </div>
       </div>
 
       {/* upcoming due task spotlight */}
-      <div data-tour="upcoming-spotlight" className="fu" style={{
-        background: "linear-gradient(135deg, #FFFBEB 0%, #FEF9E7 100%)",
-        borderRadius: "var(--r)", padding: "18px 20px",
+      <div className="fu" style={{
+        background: "var(--bg-dark)", borderRadius: "var(--r)", padding: "18px 20px",
         marginBottom: 18, position: "relative", overflow: "hidden", animationDelay: "0.04s",
         minHeight: 88, touchAction: upcomingTasks.length > 1 ? "pan-y" : "auto",
         cursor: upcomingTasks.length > 1 ? "grab" : "default",
-        border: "1px solid #FBBF24",
-        boxShadow: "0 4px 16px rgba(217,119,6,0.15)",
       }}
       onTouchStart={e => setTouchStart(e.targetTouches[0].clientX)}
       onTouchMove={e => setTouchEnd(e.targetTouches[0].clientX)}
@@ -1212,16 +1034,16 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
       >
         {upcomingTasks.length === 0 ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ color: "#92400E", flexShrink: 0 }}>{I.check}</div>
+            <div style={{ color: "var(--accent)", flexShrink: 0 }}>{I.check}</div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "#1C1917", marginBottom: 2 }}>All clear!</p>
-              <p style={{ fontSize: 12, color: "rgba(28,25,23,0.6)" }}>No upcoming tasks due</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--text-inv)", marginBottom: 2 }}>All clear!</p>
+              <p style={{ fontSize: 12, color: "rgba(250,248,245,0.5)" }}>No upcoming tasks due</p>
             </div>
           </div>
         ) : (
           <>
             {/* counter */}
-            <div style={{ position: "absolute", top: 14, right: 16, fontSize: 10, color: "rgba(28,25,23,0.45)", fontWeight: 600 }}>
+            <div style={{ position: "absolute", top: 14, right: 16, fontSize: 10, color: "rgba(250,248,245,0.3)", fontWeight: 600 }}>
               {(ti % upcomingTasks.length) + 1}/{upcomingTasks.length}
             </div>
             <div key={ti} style={{ animation: upcomingTasks.length > 1 ? "fq 10s ease both" : "none" }}>
@@ -1229,41 +1051,29 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                 <span style={{
                   padding: "2px 8px", borderRadius: 5, fontSize: 9, fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.04em",
-                  background: currentTask?.status === "missed" ? "rgba(220,38,38,0.2)" : "rgba(180,83,9,0.18)",
-                  color: currentTask?.status === "missed" ? "#991B1B" : "#92400E",
+                  background: currentTask?.status === "missed" ? "rgba(220,38,38,0.25)" : "rgba(217,119,6,0.2)",
+                  color: currentTask?.status === "missed" ? "#FCA5A5" : "var(--accent)",
                 }}>{currentTask?.status === "missed" ? "Overdue" : "Upcoming"}</span>
                 <span style={{
                   padding: "2px 8px", borderRadius: 5, fontSize: 9, fontWeight: 700,
-                  textTransform: "uppercase", background: "rgba(28,25,23,0.1)", color: "rgba(28,25,23,0.65)",
+                  textTransform: "uppercase", background: "rgba(250,248,245,0.08)", color: "rgba(250,248,245,0.5)",
                 }}>{currentTask?.priority}</span>
               </div>
               <p style={{
-                fontSize: 15, fontWeight: 600, color: "#1C1917",
+                fontSize: 15, fontWeight: 600, color: "var(--text-inv)",
                 lineHeight: 1.4, marginBottom: 6,
               }}>{currentTask?.title}</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "rgba(28,25,23,0.6)" }}>
-                {currentTask?.dueDate ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "rgba(250,248,245,0.45)" }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span>{fmtDate(currentTask?.dueDate)}</span>
+                {currentTask?.dueTime && (
                   <>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    <span>{fmtDate(currentTask.dueDate)}</span>
-                    {currentTask?.dueTime && (
-                      <>
-                        <span>·</span>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        <span>{fmtTime12(currentTask.dueTime)}</span>
-                      </>
-                    )}
                     <span>·</span>
-                  </>
-                ) : (
-                  <>
-                    <span style={{
-                      padding: "2px 8px", borderRadius: 5, fontSize: 9, fontWeight: 700,
-                      textTransform: "uppercase", background: "rgba(28,25,23,0.1)", color: "rgba(28,25,23,0.7)",
-                    }}>Anytime</span>
-                    <span>·</span>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <span>{fmtTime12(currentTask?.dueTime)}</span>
                   </>
                 )}
+                <span>·</span>
                 <span>{currentTask?.group}</span>
               </div>
             </div>
@@ -1273,7 +1083,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                 {upcomingTasks.map((_, i) => (
                   <div key={i} style={{
                     width: i === (ti % upcomingTasks.length) ? 16 : 4, height: 4, borderRadius: 100,
-                    background: i === (ti % upcomingTasks.length) ? "#D97706" : "rgba(28,25,23,0.2)",
+                    background: i === (ti % upcomingTasks.length) ? "var(--accent)" : "rgba(250,248,245,0.15)",
                     transition: "all 0.3s ease",
                   }} />
                 ))}
@@ -1284,7 +1094,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
       </div>
 
       {/* stats */}
-      <div data-tour="dashboard-stats" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap, 10px)", marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap, 10px)", marginBottom: 18 }}>
         {stats.map((s, i) => (
           <div key={i} className="fu" onClick={() => setPage && setPage("tasks")} style={{
             background: "var(--bg-card)", borderRadius: "var(--r)", padding: "var(--card-pad, 14px)",
@@ -1307,20 +1117,12 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
       </div>
 
       {/* groups overview */}
-      <div data-tour="home-groups" className="fu" style={{ animationDelay: "0.3s" }}>
+      <div className="fu" style={{ animationDelay: "0.3s" }}>
         <SectionHeader title="Groups" />
         {groups.length === 0 ? (
           <EmptyMsg msg="No groups yet" />
         ) : (
-          <div style={{
-            display: "flex", flexDirection: "column", gap: 8,
-            // After 3 groups, enable vertical scrolling (each card ~62px + 8px gap)
-            maxHeight: groups.length > 3 ? 210 : "none",
-            overflowY: groups.length > 3 ? "auto" : "visible",
-            paddingRight: groups.length > 3 ? 4 : 0,
-            WebkitOverflowScrolling: "touch",
-            scrollbarWidth: "thin",
-          }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {groups.map(g => {
               const gt = tasks.filter(t => t.group === g.name);
               const gd = gt.filter(t => t.status === "completed").length;
@@ -1335,16 +1137,16 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
                 onMouseEnter={e => { e.currentTarget.style.transform = "translateX(2px)"; e.currentTarget.style.boxShadow = "var(--sh)"; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = "translateX(0)"; e.currentTarget.style.boxShadow = "none"; }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 10 }}>
-                    <span title={g.name} style={{
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 10 }}>
+                    <span style={{
                       fontSize: 13, fontWeight: 600,
-                      wordBreak: "break-word", overflowWrap: "anywhere",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       flex: 1, minWidth: 0,
                     }}>{g.name}</span>
                     <span style={{ fontSize: 10, color: "var(--text2)", flexShrink: 0 }}>{gd}/{gt.length}</span>
                   </div>
                   <div style={{ background: "var(--border)", borderRadius: 100, height: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", borderRadius: 100, background: "var(--green)", width: `${pct}%`, transition: "width 0.6s ease" }} />
+                    <div style={{ height: "100%", borderRadius: 100, background: g.color, width: `${pct}%`, transition: "width 0.6s ease" }} />
                   </div>
                 </div>
               );
@@ -1358,7 +1160,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage }) {
 
 /* ═══════════════════════ TASKS ═══════════════════════ */
 
-function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
+function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, notifSettings, saveNotifSettings, showGlobalToast }) {
   const [tab, setTab] = useState("view");
   const [timeFilter, setTimeFilter] = useState("all");
   const [toast, setToast] = useState(null);
@@ -1433,16 +1235,19 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
             TASKYA<span style={{ color: "var(--accent)" }}>.</span>
           </h2>
         </div>
-        <LogoutBtn onLogout={onLogout} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <GearBtn onOpenSettings={onOpenSettings} />
+          <LogoutBtn onLogout={onLogout} />
+        </div>
       </div>
 
       {/* view / add / missed tabs */}
-      <div data-tour="tasks-tabs" className="fu" style={{
+      <div className="fu" style={{
         display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, marginBottom: 14,
         background: "#F0ECE6", borderRadius: "var(--rs)", padding: 3, animationDelay: "0.04s",
       }}>
         {tabs.map(t => (
-          <button key={t.id} data-tour={t.id === "add" ? "tab-add" : undefined} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
             padding: "10px 0", border: "none", borderRadius: 10,
             background: tab === t.id ? "var(--bg-card)" : "transparent",
             color: tab === t.id ? "var(--text)" : "var(--text2)",
@@ -1464,14 +1269,14 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
       </div>
 
       {/* time filter pills — shown on all tabs */}
-      <div data-tour="time-filters" className="fu" style={{
+      <div className="fu" style={{
         display: "flex", gap: 6, marginBottom: 14,
         flexWrap: "nowrap", animationDelay: "0.08s",
         width: "100%",
       }}>
         {timeFilters.map(f => {
           const active = timeFilter === f;
-          const label = tab === "add" && f === "all" ? "Custom" : f;
+          const label = tab === "add" && f === "all" ? "Anytime" : f;
           return (
             <button key={f} onClick={() => setTimeFilter(f)} style={{
               flex: 1,
@@ -1490,7 +1295,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
 
       <div key={`${tab}-${timeFilter}`} className="tab-content">
       {tab === "add" ? (
-        <AddTaskForm dispatch={dispatch} groups={groups} setTab={setTab} defaultTime={timeFilter !== "all" ? timeFilter : "custom"} existingTasks={tasks} showToast={showToast} userName={userName} />
+        <AddTaskForm dispatch={dispatch} groups={groups} setTab={setTab} defaultTime={timeFilter !== "all" ? timeFilter : ""} existingTasks={tasks} showToast={showToast} userName={userName} />
       ) : (
         <>
           {/* hide completed toggle */}
@@ -1547,7 +1352,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
       {activeTask && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(28,25,23,0.45)", zIndex: 300,
+          background: "rgba(0,0,0,0.4)", zIndex: 300,
           display: "flex", alignItems: "flex-end", justifyContent: "center",
         }} onClick={() => setActiveTask(null)}>
           <div style={{
@@ -1593,36 +1398,44 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName }) {
               }}>{activeTask.title}</h4>
             </div>
 
-            {/* task details: group + description */}
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-              {(() => {
-                const grp = groups?.find(g => g.id === activeTask.groupId || g.name === activeTask.group);
-                return grp ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: grp.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em" }}>GROUP</span>
-                    <span style={{
-                      fontSize: 13, fontWeight: 600, color: "var(--text)",
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      minWidth: 0, flex: 1,
-                    }} title={grp.name}>{grp.name}</span>
-                  </div>
-                ) : null;
-              })()}
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>DESCRIPTION</p>
-                <p style={{
-                  fontSize: 13,
-                  color: activeTask.desc ? "var(--text)" : "var(--text2)",
-                  lineHeight: 1.5,
-                  wordBreak: "break-word", overflowWrap: "break-word",
-                  fontStyle: activeTask.desc ? "normal" : "italic",
-                }}>{activeTask.desc || "No description provided"}</p>
-              </div>
-            </div>
-
             {/* timeline */}
             <div style={{ padding: "20px 20px calc(24px + env(safe-area-inset-bottom, 0px))" }}>
+              {/* notify_before override */}
+              {activeTask.status === "pending" && (
+                <div style={{ marginBottom: 20, padding: "12px 14px", background: "var(--bg)", borderRadius: "var(--rs)", border: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      {I.bell}
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>Remind me</span>
+                    </div>
+                    <select
+                      value={activeTask.notify_before || ""}
+                      onChange={async (e) => {
+                        const val = e.target.value || null;
+                        const updated = { ...activeTask, notify_before: val };
+                        setActiveTask(updated);
+                        try {
+                          await dbUpdate("taskya_tasks", { notify_before: val }, { id: activeTask.id });
+                          if (showGlobalToast) showGlobalToast("Reminder saved", "green");
+                        } catch {}
+                      }}
+                      style={{
+                        padding: "6px 10px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+                        fontSize: 12, fontFamily: "inherit", background: "var(--bg-card)", color: "var(--text)",
+                        cursor: "pointer", outline: "none",
+                      }}
+                    >
+                      <option value="">Use default</option>
+                      <option value="15m">15 minutes before</option>
+                      <option value="1h">1 hour before</option>
+                      <option value="3h">3 hours before</option>
+                      <option value="1d">1 day before</option>
+                      <option value="off">Off</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
               <p style={{ fontSize: 11, color: "var(--text2)", marginBottom: 20, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700 }}>
                 Activity timeline
               </p>
@@ -1641,90 +1454,8 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
-  const [showRescheduleConfirm, setShowRescheduleConfirm] = useState(false);
-
-  // Compute default date/time when reschedule opens (based on task type)
-  const computeRescheduleDefaults = () => {
-    const pad = (n) => String(n).padStart(2, "0");
-    const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const fmtTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    const now = new Date();
-
-    // If task already has a due date/time, use that
-    if (task.dueDate) {
-      return { date: task.dueDate, time: task.dueTime || "" };
-    }
-
-    // Task type-based defaults for anytime tasks
-    switch (task.time) {
-      case "daily":
-        return { date: fmtDate(now), time: "23:59" };
-      case "weekly": {
-        const d = new Date(now);
-        d.setDate(now.getDate() + (7 - now.getDay()));
-        return { date: fmtDate(d), time: "23:59" };
-      }
-      case "monthly": {
-        const d = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        return { date: fmtDate(d), time: "23:59" };
-      }
-      case "quarterly": {
-        const quarter = Math.floor(now.getMonth() / 3);
-        const d = new Date(now.getFullYear(), (quarter + 1) * 3, 0);
-        return { date: fmtDate(d), time: "23:59" };
-      }
-      default:
-        // "anytime" or unspecified — use current date/time
-        return { date: fmtDate(now), time: fmtTime(now) };
-    }
-  };
-
-  const defaults = computeRescheduleDefaults();
-  const [newDueDate, setNewDueDate] = useState(defaults.date);
-  const [newDueTime, setNewDueTime] = useState(defaults.time);
-
-  // Min/max for the reschedule date picker based on task's time bucket
-  const rescheduleBounds = () => {
-    const pad = (n) => String(n).padStart(2, "0");
-    const fmtD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const now = new Date();
-    const min = fmtD(now);
-    let max = "";
-    switch (task.time) {
-      case "daily":
-        max = fmtD(now);
-        break;
-      case "weekly": {
-        const d = new Date(now);
-        d.setDate(now.getDate() + (7 - now.getDay()));
-        max = fmtD(d);
-        break;
-      }
-      case "monthly": {
-        const d = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        max = fmtD(d);
-        break;
-      }
-      case "quarterly": {
-        const q = Math.ceil((now.getMonth() + 1) / 3);
-        const d = new Date(now.getFullYear(), q * 3, 0);
-        max = fmtD(d);
-        break;
-      }
-      default:
-        max = ""; // custom / anytime: no upper bound
-    }
-    return { min, max };
-  };
-
-  // Refresh defaults when the reschedule popup opens
-  useEffect(() => {
-    if (showReschedule) {
-      const d = computeRescheduleDefaults();
-      setNewDueDate(d.date);
-      setNewDueTime(d.time);
-    }
-  }, [showReschedule]);
+  const [newDueDate, setNewDueDate] = useState(task.dueDate || "");
+  const [newDueTime, setNewDueTime] = useState(task.dueTime || "");
 
   const isMissed = task.status === "missed";
   const isDone = task.status === "completed";
@@ -1745,14 +1476,8 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
 
   const handleReschedule = () => {
     if (!newDueDate) return;
-    // Close the form and open confirmation
-    setShowReschedule(false);
-    setShowRescheduleConfirm(true);
-  };
-
-  const confirmReschedule = () => {
     dispatch({ type: "UPDATE_DUE", id: task.id, dueDate: newDueDate, dueTime: newDueTime || null });
-    setShowRescheduleConfirm(false);
+    setShowReschedule(false);
     showToast("Task rescheduled", "green");
   };
 
@@ -1760,7 +1485,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
   const taskOwner = task.createdBy;
   const taskGroup = groups?.find(g => g.id === task.groupId || g.name === task.group);
   const groupOwner = taskGroup?.createdBy;
-  const canDelete = (userName === taskOwner || userName === groupOwner) && !isDone;
+  const canDelete = userName === taskOwner || userName === groupOwner;
   const isOwner = userName === taskOwner;
   // group task = group has more than 1 member (shared group)
   const isGroupTask = taskGroup && taskGroup.members?.length > 1;
@@ -1788,9 +1513,24 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
               <div style={{
                 fontSize: 14, fontWeight: isMissed ? 600 : 500, lineHeight: 1.35,
                 color: titleColor,
-                wordBreak: "break-word", overflowWrap: "anywhere",
-                whiteSpace: "normal", flex: 1, minWidth: 0,
-              }} title={task.title}>{task.title}</div>
+              }}>{task.title}</div>
+              {isGroupTask && !isOwner && taskOwner && (
+                <span style={{
+                  padding: "2px 7px", borderRadius: 100, fontSize: 9, fontWeight: 700,
+                  background: groupColor, color: "white", opacity: 0.9,
+                  letterSpacing: "0.02em", display: "inline-flex", alignItems: "center", gap: 3,
+                }}>
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4"/><path d="M12 14c-4 0-8 2-8 6v2h16v-2c0-4-4-6-8-6z"/></svg>
+                  {taskOwner}
+                </span>
+              )}
+              {isGroupTask && isOwner && (
+                <span style={{
+                  padding: "2px 7px", borderRadius: 100, fontSize: 9, fontWeight: 700,
+                  background: groupColor, color: "white", opacity: 0.9,
+                  textTransform: "uppercase", letterSpacing: "0.04em",
+                }}>You</span>
+              )}
             </div>
             {task.desc && <div style={{ fontSize: 12, color: isMissed ? "rgba(220,38,38,0.6)" : "var(--text2)", marginTop: 2, lineHeight: 1.4 }}>{task.desc}</div>}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
@@ -1807,17 +1547,19 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 color={isMissed ? "var(--red)" : undefined}
                 text={task.dueTime}
               />}
+              <StatusBadge status={task.status} />
               {task.rescheduled && !isMissed && (
-                <Pill text="Rescheduled" />
+                <span style={{
+                  padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700,
+                  background: "var(--accent-lt)", color: "var(--accent)",
+                  textTransform: "uppercase", letterSpacing: "0.04em",
+                }}>Rescheduled</span>
               )}
-              {task.delayed && isDone && task.dueDate && (() => {
-                // If no dueTime was set, treat due as end of day (23:59:59)
-                const dueStr = task.dueDate + (task.dueTime ? "T" + task.dueTime : "T23:59:59");
+              {task.delayed && isDone && (() => {
+                const dueStr = task.dueDate + (task.dueTime ? "T" + task.dueTime : "T23:59");
                 const due = new Date(dueStr);
                 const completed = new Date(task.completedAt);
                 const diffMs = completed - due;
-                // If completed before or at end of day (when no time was set), don't show delayed
-                if (diffMs <= 0) return null;
                 const diffMins = Math.floor(diffMs / 60000);
                 const diffHrs = Math.floor(diffMins / 60);
                 const diffDays = Math.floor(diffHrs / 24);
@@ -1869,7 +1611,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {showDeleteConfirm && (
         <ConfirmPopup
           title="Delete task"
-          message={`Are you sure you want to delete "${task.title.length > 50 ? task.title.substring(0, 50) + "…" : task.title}"? This action cannot be undone.`}
+          message={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
           confirmLabel="Delete"
           confirmColor="var(--red)"
           onConfirm={() => { dispatch({ type: "DELETE_TASK", id: task.id }); setShowDeleteConfirm(false); showToast("Task deleted", "red"); }}
@@ -1880,30 +1622,14 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {/* complete/uncomplete confirmation */}
       {showCompleteConfirm && (
         <ConfirmPopup
-          title={isDone ? "Mark as pending" : "Mark as completed"}
+          title={isDone ? "Mark as pending" : isMissed ? "Mark as completed" : "Mark as completed"}
           message={isDone
-            ? `Move "${task.title.length > 50 ? task.title.substring(0, 50) + "…" : task.title}" back to pending?`
-            : `Mark "${task.title.length > 50 ? task.title.substring(0, 50) + "…" : task.title}" as completed?`}
+            ? `Move "${task.title}" back to pending?`
+            : `Mark "${task.title}" as completed?`}
           confirmLabel={isDone ? "Undo" : "Complete"}
           confirmColor={isDone ? "var(--accent)" : "var(--green)"}
-          onConfirm={() => {
-            dispatch({ type: "TOGGLE_STATUS", id: task.id });
-            setShowCompleteConfirm(false);
-            showToast(isDone ? "Task reopened" : "Task completed", isDone ? "amber" : "green");
-          }}
+          onConfirm={() => { dispatch({ type: "TOGGLE_STATUS", id: task.id }); setShowCompleteConfirm(false); }}
           onCancel={() => setShowCompleteConfirm(false)}
-        />
-      )}
-
-      {/* reschedule confirmation popup */}
-      {showRescheduleConfirm && (
-        <ConfirmPopup
-          title="Reschedule task"
-          message={`Reschedule "${task.title.length > 40 ? task.title.substring(0, 40) + "…" : task.title}" to ${newDueDate}${newDueTime ? ` at ${newDueTime}` : ""}?`}
-          confirmLabel="Reschedule"
-          confirmColor="#1C1917"
-          onConfirm={confirmReschedule}
-          onCancel={() => setShowRescheduleConfirm(false)}
         />
       )}
 
@@ -1911,102 +1637,50 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
       {showReschedule && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(28,25,23,0.55)",
+          background: "rgba(28,25,23,0.12)",
+          
           display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 99999, padding: 20,
-          backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+          zIndex: 200, padding: 24,
         }} onClick={() => setShowReschedule(false)}>
           <div className="si" style={{
-            background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
-            maxWidth: 440, width: "calc(100% - 40px)", boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-            boxSizing: "border-box", overflow: "hidden",
+            background: "var(--bg-card)", borderRadius: "var(--r)", padding: 24,
+            maxWidth: "90%", width: "100%", boxShadow: "0 12px 40px rgba(28,25,23,0.15)",
           }} onClick={e => e.stopPropagation()}>
-            <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4, wordBreak: "break-word" }}>Reschedule task</h4>
-            <p style={{
-              fontSize: 12, color: "var(--text2)", marginBottom: 16,
-              wordBreak: "break-word", overflowWrap: "break-word",
-              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}>Set a new due date for "{task.title.length > 40 ? task.title.substring(0, 40) + "…" : task.title}"</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+            <h4 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Reschedule task</h4>
+            <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 14 }}>Set a new due date for "{task.title}"</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
               <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   New Due Date
                 </label>
-                {(() => {
-                  const b = rescheduleBounds();
-                  return (
-                    <>
-                      <input
-                        type="date"
-                        value={newDueDate}
-                        min={b.min}
-                        max={b.max || undefined}
-                        onChange={e => {
-                          const val = e.target.value;
-                          let clamped = val;
-                          if (val && val < b.min) clamped = b.min;
-                          if (val && b.max && val > b.max) clamped = b.max;
-                          setNewDueDate(clamped);
-                        }}
-                        style={{
-                          width: "100%", padding: "12px 14px", border: "1.5px solid var(--border)",
-                          borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
-                          background: "var(--bg-card)", color: "var(--text)", outline: "none",
-                          boxSizing: "border-box", appearance: "none", WebkitAppearance: "none",
-                          minHeight: 44,
-                        }}
-                        onFocus={e => e.target.style.borderColor = "var(--accent)"}
-                        onBlur={e => e.target.style.borderColor = "var(--border)"}
-                      />
-                      {task.time !== "custom" && task.time && b.max && (
-                        <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4 }}>
-                          {task.time === "daily" && "Must be today"}
-                          {task.time === "weekly" && `Within this week (by ${b.max})`}
-                          {task.time === "monthly" && `Within this month (by ${b.max})`}
-                          {task.time === "quarterly" && `Within this quarter (by ${b.max})`}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
+                <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} style={{
+                  width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
+                  borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
+                  background: "var(--bg)", color: "var(--text)", outline: "none",
+                }} />
               </div>
               <div>
-                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 6, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-                  New Due Time (optional)
+                <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                  New Due Time
                 </label>
                 <input type="time" value={newDueTime} onChange={e => setNewDueTime(e.target.value)} style={{
-                  width: "100%", padding: "12px 14px", border: "1.5px solid var(--border)",
-                  borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
-                  background: "var(--bg-card)", color: "var(--text)", outline: "none",
-                  boxSizing: "border-box", appearance: "none", WebkitAppearance: "none",
-                  minHeight: 44,
-                }}
-                onFocus={e => e.target.style.borderColor = "var(--accent)"}
-                onBlur={e => e.target.style.borderColor = "var(--border)"}
-                />
+                  width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
+                  borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
+                  background: "var(--bg)", color: "var(--text)", outline: "none",
+                }} />
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "stretch" }}>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button onClick={() => setShowReschedule(false)} style={{
-                flex: 1, minWidth: 100,
-                padding: "10px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
-                background: "var(--bg)", color: "var(--text2)", fontSize: 13, fontWeight: 600,
+                padding: "8px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+                background: "var(--bg)", color: "var(--text2)", fontSize: 12, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
               }}>Cancel</button>
-              <button onClick={handleReschedule} disabled={!newDueDate} style={{
-                flex: 1, minWidth: 100,
-                padding: "10px 20px", border: "none", borderRadius: "var(--rs)",
-                background: newDueDate ? "#1C1917" : "var(--border)",
-                color: newDueDate ? "white" : "var(--text2)",
-                fontSize: 13, fontWeight: 600,
-                cursor: newDueDate ? "pointer" : "not-allowed", fontFamily: "inherit",
-                transition: "box-shadow 0.15s ease, transform 0.15s ease",
-                boxShadow: newDueDate ? "0 2px 8px rgba(28,25,23,0.3)" : "none",
-              }}
-              onMouseEnter={e => { if (newDueDate) { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-              onMouseLeave={e => { if (newDueDate) { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; } }}
-              >Reschedule</button>
+              <button onClick={handleReschedule} style={{
+                padding: "8px 18px", border: "none", borderRadius: "var(--rs)",
+                background: "var(--accent)", color: "white", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit", opacity: newDueDate ? 1 : 0.5,
+              }}>Reschedule</button>
             </div>
           </div>
         </div>
@@ -2055,7 +1729,7 @@ function ActivityTimeline({ activity }) {
               border: `2px solid var(--bg)`,
             }}>{cfg.icon}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>
-              {cfg.label} <span style={{ color: cfg.color }}>{(a.by === "system" || a.by === "Taskya") ? "by Taskya" : a.by}</span>
+              {cfg.label} <span style={{ color: cfg.color }}>{a.by === "system" ? "system" : a.by}</span>
             </div>
             <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 4 }}>{fmtDateTime(a.at)}</div>
             {a.type === "rescheduled" && a.dueDate && (
@@ -2071,58 +1745,39 @@ function ActivityTimeline({ activity }) {
 }
 
 function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, onCancel, size }) {
-  const maxW = size === "sm" ? 320 : 440;
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-
-  const overlay = (
+  const maxW = size === "sm" ? 280 : "90%";
+  return (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "rgba(28,25,23,0.55)",
+      background: "rgba(28,25,23,0.12)",
+      
       display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 99999, padding: 20,
-      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+      zIndex: 200, padding: 24,
     }} onClick={onCancel}>
       <div className="si" style={{
-        background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 22,
-        maxWidth: maxW, width: "calc(100% - 40px)", boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-        boxSizing: "border-box", overflow: "hidden", position: "relative",
+        background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 24,
+        maxWidth: maxW, width: "100%", boxShadow: "0 12px 40px rgba(28,25,23,0.15)",
       }} onClick={e => e.stopPropagation()}>
-        <h4 style={{
-          fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6,
-          wordBreak: "break-word", overflowWrap: "break-word",
-        }}>{title}</h4>
-        <p style={{
-          fontSize: size === "sm" ? 12 : 13, color: "var(--text2)", lineHeight: 1.5,
-          marginBottom: size === "sm" ? 14 : 20,
-          wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal",
-        }}>{message}</p>
-        <div style={{ display: "flex", gap: 10, justifyContent: "stretch", flexWrap: "wrap" }}>
+        <h4 style={{ fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6 }}>{title}</h4>
+        <p style={{ fontSize: size === "sm" ? 12 : 13, color: "var(--text2)", lineHeight: 1.5, marginBottom: size === "sm" ? 14 : 20 }}>{message}</p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button onClick={onCancel} style={{
-            flex: 1, minWidth: 100,
-            padding: size === "sm" ? "9px 14px" : "10px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
-            background: "var(--bg)", color: "var(--text2)", fontSize: size === "sm" ? 12 : 13, fontWeight: 600,
+            padding: size === "sm" ? "6px 14px" : "8px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+            background: "var(--bg)", color: "var(--text2)", fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s ease",
           }}>Cancel</button>
           <button onClick={onConfirm} style={{
-            flex: 1, minWidth: 100,
-            padding: size === "sm" ? "9px 14px" : "10px 18px", border: "none", borderRadius: "var(--rs)",
-            background: confirmColor, color: "white", fontSize: size === "sm" ? 12 : 13, fontWeight: 600,
-            cursor: "pointer", fontFamily: "inherit",
-            transition: "box-shadow 0.15s ease, transform 0.15s ease",
-            boxShadow: "0 2px 8px rgba(28,25,23,0.3)",
+            padding: size === "sm" ? "6px 14px" : "8px 18px", border: "none", borderRadius: "var(--rs)",
+            background: confirmColor, color: "white", fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit", transition: "opacity 0.15s ease",
           }}
-          onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; }}
+          onMouseEnter={e => e.target.style.opacity = "0.88"}
+          onMouseLeave={e => e.target.style.opacity = "1"}
           >{confirmLabel}</button>
         </div>
       </div>
     </div>
   );
-
-  // Render via portal to document.body — escapes all parent stacking contexts
-  if (!mounted || typeof document === "undefined") return null;
-  return ReactDOM.createPortal(overlay, document.body);
 }
 
 function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, showToast, userName }) {
@@ -2148,57 +1803,16 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         const eoq = new Date(now.getFullYear(), q * 3, 0);
         return fmtDate(eoq);
       }
-      case "custom":
-      case "all":
-        return ""; // Let user pick — shows "Select date" placeholder
       default:
-        return fmtDate(now);
+        return "";
     }
   };
 
-  // Maximum selectable due date per time bucket.
-  const getMaxDue = (time) => {
-    const now = new Date();
-    switch (time) {
-      case "daily":
-        return fmtDate(now);
-      case "weekly": {
-        const sun = new Date(now);
-        sun.setDate(now.getDate() + (7 - now.getDay()));
-        return fmtDate(sun);
-      }
-      case "monthly": {
-        const eom = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        return fmtDate(eom);
-      }
-      case "quarterly": {
-        const q = Math.ceil((now.getMonth() + 1) / 3);
-        const eoq = new Date(now.getFullYear(), q * 3, 0);
-        return fmtDate(eoq);
-      }
-      default:
-        return ""; // no max for custom
-    }
-  };
-
-  // Minimum = today (can't create tasks in the past)
-  const getMinDue = () => {
-    const now = new Date();
-    return fmtDate(now);
-  };
-
-  const fmtTimeHM = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-  // Default time of day per bucket. Custom → empty (user picks). Others → 23:59.
-  const getDefaultTime = (time) => {
-    if (time === "custom" || time === "all") return "";
-    return "23:59";
-  };
-
+  const isNoDue = !defaultTime;
   const initTime = defaultTime || "daily";
   const [form, setForm] = useState({
     title: "", desc: "", group: groups[0]?.name || "", time: initTime, priority: "medium",
-    dueDate: getDefaultDue(initTime), dueTime: getDefaultTime(initTime),
+    dueDate: isNoDue ? "" : getDefaultDue(initTime), dueTime: isNoDue ? "" : "23:59",
   });
   const [errors, setErrors] = useState({});
   const [dueDateManual, setDueDateManual] = useState(false);
@@ -2209,13 +1823,14 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
 
   // Sync form when time filter pill changes
   useEffect(() => {
+    const noDue = !defaultTime;
     const newTime = defaultTime || "daily";
     if (!dueDateManual) {
       setForm(prev => ({
         ...prev,
         time: newTime,
-        dueDate: getDefaultDue(newTime),
-        dueTime: getDefaultTime(newTime),
+        dueDate: noDue ? "" : getDefaultDue(newTime),
+        dueTime: noDue ? "" : "23:59",
       }));
     } else {
       setForm(prev => ({ ...prev, time: newTime }));
@@ -2230,41 +1845,19 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     }
     if (!form.priority) e.priority = "Select priority";
     if (!form.group) e.group = "Select a group";
-    // Custom tasks must have a date selected
-    if ((form.time === "custom" || form.time === "all") && !form.dueDate) {
-      e.dueDate = "Please select a due date";
-    }
-    // Due date range check per bucket
-    if (form.dueDate) {
-      const minD = getMinDue();
-      const maxD = getMaxDue(form.time);
-      if (form.dueDate < minD) {
-        e.dueDate = "Due date cannot be in the past";
-      } else if (maxD && form.dueDate > maxD) {
-        const bucketLabel = { daily: "today", weekly: "this week", monthly: "this month", quarterly: "this quarter" }[form.time];
-        e.dueDate = `${form.time.charAt(0).toUpperCase() + form.time.slice(1)} tasks must be due within ${bucketLabel}`;
-      }
-    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
-
   const submit = () => {
     if (!validate()) return;
-    setShowCreateConfirm(true);
-  };
-
-  const confirmCreate = () => {
     const selectedGroup = groups.find(g => g.name === form.group);
     dispatch({ type: "ADD_TASK", payload: { ...form, groupId: selectedGroup?.id, title: form.title.trim(), status: "pending", dueDate: form.dueDate || null, dueTime: form.dueTime || null } });
-    showToast("Task created successfully", "green");
+    showToast("Task added successfully", "green");
     const resetTime = defaultTime || "daily";
-    setForm({ title: "", desc: "", group: groups[0]?.name || "", time: resetTime, priority: "medium", dueDate: getDefaultDue(resetTime), dueTime: getDefaultTime(resetTime) });
+    setForm({ title: "", desc: "", group: groups[0]?.name || "", time: resetTime, priority: "medium", dueDate: isNoDue ? "" : getDefaultDue(resetTime), dueTime: isNoDue ? "" : "23:59" });
     setErrors({});
     setDueDateManual(false);
-    setShowCreateConfirm(false);
   };
 
   const fld = {
@@ -2272,7 +1865,6 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
     background: "var(--bg)", color: "var(--text)", outline: "none",
     transition: "border-color 0.15s ease", WebkitAppearance: "none",
-    boxSizing: "border-box",
   };
   const fldErr = { ...fld, borderColor: "var(--red)" };
   const lbl = { fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 5, display: "flex", alignItems: "center", gap: 4, textTransform: "uppercase", letterSpacing: "0.07em" };
@@ -2283,11 +1875,10 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
   const errStyle = { fontSize: 10, color: "var(--red)", marginTop: 4, fontWeight: 500 };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 260px)", width: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 260px)" }}>
     <div className="si" style={{
       background: "var(--bg-card)", borderRadius: "var(--r)", padding: 20,
       border: "1px solid var(--border)", boxShadow: "var(--shm)",
-      width: "100%", boxSizing: "border-box",
     }}>
       <h3 style={{ fontFamily: "'Instrument Serif', serif", fontSize: 20, fontWeight: 400, marginBottom: 18 }}>
         New task
@@ -2309,35 +1900,28 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
             onFocus={e => e.target.style.borderColor="var(--accent)"}
             onBlur={e => e.target.style.borderColor="var(--border)"} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, auto) minmax(120px, 1fr)", gap: 10, minWidth: 0 }}>
-          <div style={{ position: "relative", minWidth: 0, maxWidth: "100%" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div style={{ position: "relative" }}>
             <label style={lbl}>Group {reqDot}</label>
             <button ref={groupBtnRef} type="button"
               onClick={() => setGroupDropdownOpen(o => !o)}
               style={{
                 ...((errors.group ? fldErr : fld)),
                 textAlign: "left", cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "flex-start",
-                gap: 8, width: "100%", maxWidth: "100%", overflow: "hidden",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                gap: 8,
               }}>
               {form.group ? (() => {
                 const sel = groups.find(g => g.name === form.group);
                 const isOwner = sel?.createdBy === userName;
                 return (
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}>
-                    {/* horizontally scrollable name — shows full name if user drags */}
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
                     <span style={{
-                      overflowX: "auto", overflowY: "hidden", whiteSpace: "nowrap",
-                      minWidth: 0, flex: 1, maxWidth: "100%",
-                      WebkitOverflowScrolling: "touch",
-                      scrollbarWidth: "none", msOverflowStyle: "none",
-                      display: "inline-block",
-                    }}
-                    className="gsel-name"
-                    onClick={e => e.stopPropagation()}
-                    >{form.group}</span>
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      minWidth: 0, flexShrink: 1,
+                    }}>{form.group}</span>
                     <span style={{
-                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                      fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
                       background: isOwner ? "var(--accent-lt)" : "var(--blue-lt)",
                       color: isOwner ? "var(--accent)" : "var(--blue)",
                       textTransform: "uppercase", letterSpacing: "0.04em",
@@ -2426,12 +2010,13 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
                 const colors = { high: { color: "var(--red)", bg: "var(--red-lt)" }, medium: { color: "var(--accent)", bg: "var(--accent-lt)" }, low: { color: "var(--green)", bg: "var(--green-lt)" } };
                 const c = colors[form.priority] || colors.medium;
                 return (
-                  <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
-                    <span style={{
-                      width: 8, height: 8, borderRadius: "50%",
-                      background: c.color, flexShrink: 0,
-                    }} />
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
                     <span style={{ textTransform: "capitalize" }}>{form.priority}</span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                      background: c.bg, color: c.color,
+                      textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                    }}>{form.priority}</span>
                   </span>
                 );
               })() : <span style={{ color: "var(--text2)" }}>Select priority</span>}
@@ -2470,18 +2055,19 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
                         background: selected ? "var(--bg)" : "transparent",
                         color: "var(--text)", fontFamily: "inherit", fontSize: 13,
                         cursor: "pointer", textAlign: "left",
-                        display: "flex", alignItems: "center",
-                        gap: 10, transition: "background 0.1s ease",
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        gap: 8, transition: "background 0.1s ease",
                         borderBottom: idx === arr.length - 1 ? "none" : "1px solid var(--border)",
                       }}
                       onMouseEnter={e => { if (!selected) e.currentTarget.style.background = "var(--bg)"; }}
                       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = "transparent"; }}
                       >
-                        <span style={{
-                          width: 8, height: 8, borderRadius: "50%",
-                          background: p.color, flexShrink: 0,
-                        }} />
                         <span style={{ fontWeight: selected ? 600 : 500 }}>{p.label}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
+                          background: p.bg, color: p.color,
+                          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+                        }}>{p.label}</span>
                       </button>
                     );
                   })}
@@ -2490,108 +2076,37 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
             )}
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div>
-            <label style={lbl}>Due Date</label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="date"
-                value={form.dueDate}
-                min={getMinDue()}
-                max={getMaxDue(form.time) || undefined}
-                onChange={e => {
-                  const val = e.target.value;
-                  const minD = getMinDue();
-                  const maxD = getMaxDue(form.time);
-                  // Clamp to allowed range
-                  let clamped = val;
-                  if (val && val < minD) clamped = minD;
-                  if (val && maxD && val > maxD) clamped = maxD;
-                  setForm({ ...form, dueDate: clamped });
-                  setDueDateManual(true);
-                  if (errors.dueDate) setErrors(pr => ({ ...pr, dueDate: undefined }));
-                  if (clamped !== val && val) {
-                    showToast(`Due date adjusted to fit the ${form.time === "custom" ? "allowed" : form.time} range`, "red");
-                  }
-                }}
-                style={{
-                  ...(errors.dueDate ? { ...fld, borderColor: "var(--red)" } : fld),
-                  // Make native text invisible when empty so our overlay shows instead
-                  color: form.dueDate ? "var(--text)" : "transparent",
-                }}
-              />
-              {!form.dueDate && (
-                <span style={{
-                  position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
-                  fontSize: 14, color: "var(--text2)", pointerEvents: "none",
-                  fontFamily: "inherit",
-                }}>Select date</span>
-              )}
+        {!isNoDue && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={lbl}>Due Date</label>
+              <input type="date" value={form.dueDate} onChange={e => { setForm({...form, dueDate: e.target.value}); setDueDateManual(true); }} style={fld} />
             </div>
-            {errors.dueDate && <div style={{ fontSize: 10, color: "var(--red)", marginTop: 4 }}>{errors.dueDate}</div>}
-            {!errors.dueDate && form.time !== "custom" && (
-              <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4 }}>
-                {form.time === "daily" && "Must be today"}
-                {form.time === "weekly" && `Within this week (by ${getMaxDue("weekly")})`}
-                {form.time === "monthly" && `Within this month (by ${getMaxDue("monthly")})`}
-                {form.time === "quarterly" && `Within this quarter (by ${getMaxDue("quarterly")})`}
-              </div>
-            )}
-          </div>
-          <div>
-            <label style={lbl}>Due Time</label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="time"
-                value={form.dueTime || ""}
-                onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }}
-                style={{
-                  ...fld,
-                  color: form.dueTime ? "var(--text)" : "transparent",
-                }}
-              />
-              {!form.dueTime && (
-                <span style={{
-                  position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
-                  fontSize: 14, color: "var(--text2)", pointerEvents: "none",
-                  fontFamily: "inherit",
-                }}>Select time</span>
-              )}
+            <div>
+              <label style={lbl}>Due Time</label>
+              <input type="time" value={form.dueTime || ""} onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }} style={fld} />
             </div>
           </div>
-        </div>
+        )}
         <button onClick={submit} style={{
-          padding: "13px", background: "#1C1917", color: "white",
+          padding: "13px", background: "var(--bg-dark)", color: "var(--text-inv)",
           border: "none", borderRadius: "var(--rs)", fontSize: 14, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit", width: "100%", marginTop: 2,
-          transition: "box-shadow 0.15s ease, transform 0.15s ease",
-          boxShadow: "0 2px 8px rgba(28,25,23,0.25)",
+          transition: "opacity 0.15s ease",
         }}
-        onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.35)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-        onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.25)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+        onMouseEnter={e => e.target.style.opacity="0.88"}
+        onMouseLeave={e => e.target.style.opacity="1"}>
           Create Task
         </button>
       </div>
     </div>
-
-    {/* create task confirmation */}
-    {showCreateConfirm && (
-      <ConfirmPopup
-        title="Create task"
-        message={`Create "${form.title.trim()}" in ${form.group}${form.dueDate ? ` due ${form.dueDate}${form.dueTime ? ` at ${form.dueTime}` : ""}` : ""}?`}
-        confirmLabel="Create"
-        confirmColor="var(--green)"
-        onConfirm={confirmCreate}
-        onCancel={() => setShowCreateConfirm(false)}
-      />
-    )}
     </div>
   );
 }
 
 /* ═══════════════════════ GROUPS ═══════════════════════ */
 
-function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations, setInvitations, reloadData }) {
+function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations, setInvitations, reloadData, onOpenSettings }) {
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#D97706");
@@ -2600,7 +2115,6 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   const [confirmCreate, setConfirmCreate] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [confirmRemoveMember, setConfirmRemoveMember] = useState(null);
-  const [creatingGroup, setCreatingGroup] = useState(false);
   const topRef = useRef(null);
 
   const toggleForm = () => {
@@ -2630,21 +2144,13 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   };
 
   const confirmAddGroup = async () => {
-    if (creatingGroup) return;
-    setCreatingGroup(true);
-    try {
-      const gId = `g_${userName}_${Date.now()}`;
-      const trimmed = newName.trim();
-      await dbInsert("taskya_groups", { id: gId, name: trimmed, color: newColor, created_by: userName, is_default: false });
-      await dbInsert("taskya_group_members", { group_id: gId, username: userName });
-      setGroups(p => [...p, { id: gId, name: trimmed, color: newColor, members: [userName], createdBy: userName, isDefault: false }]);
-      setNewName(""); setShowForm(false); setConfirmCreate(false);
-      showInviteToast("Group created", "green");
-    } catch (e) {
-      showInviteToast("Failed to create group", "red");
-    } finally {
-      setCreatingGroup(false);
-    }
+    const gId = `g_${userName}_${Date.now()}`;
+    const trimmed = newName.trim();
+    await dbInsert("taskya_groups", { id: gId, name: trimmed, color: newColor, created_by: userName, is_default: false });
+    await dbInsert("taskya_group_members", { group_id: gId, username: userName });
+    setGroups(p => [...p, { id: gId, name: trimmed, color: newColor, members: [userName], createdBy: userName, isDefault: false }]);
+    setNewName(""); setShowForm(false); setConfirmCreate(false);
+    showInviteToast("Group created", "green");
   };
 
   const deleteGroup = async (gid) => {
@@ -2654,9 +2160,6 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     setConfirmDeleteId(null);
     showInviteToast("Group deleted", "red");
   };
-
-  const [confirmInvite, setConfirmInvite] = useState(null); // { gid, target }
-  const [membersPopup, setMembersPopup] = useState(null); // group object when open
 
   const sendInvite = async (gid) => {
     const target = (memberInput[gid] || "").trim().toLowerCase();
@@ -2668,26 +2171,13 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     const group = groups.find(g => g.id === gid);
     if (group?.isDefault) { showInviteToast("Can't invite others to your default group", "red"); return; }
     if (group?.members?.includes(target)) { showInviteToast(`${target} is already a member`, "red"); return; }
-
-    // Check Supabase directly for any existing pending invite (not just local state)
-    const existingInvites = await dbGet("taskya_invitations", { to_user: target, group_id: gid, status: "pending" });
-    if (Array.isArray(existingInvites) && existingInvites.length > 0) {
-      showInviteToast(`Invite already pending for ${target}`, "red");
-      return;
+    if (invitations.some(inv => inv.to === target && inv.groupId === gid && inv.status === "pending")) {
+      showInviteToast(`Invite already sent to ${target}`, "red"); return;
     }
-
-    // All validations passed — show confirmation before sending
-    setConfirmInvite({ gid, target, groupName: group?.name });
-  };
-
-  const confirmSendInvite = async () => {
-    if (!confirmInvite) return;
-    const { gid, target, groupName } = confirmInvite;
     const invId = `inv_${Date.now()}`;
-    await dbInsert("taskya_invitations", { id: invId, group_id: gid, group_name: groupName, from_user: userName, to_user: target, status: "pending" });
-    setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: groupName, status: "pending" }]);
+    await dbInsert("taskya_invitations", { id: invId, group_id: gid, group_name: group?.name, from_user: userName, to_user: target, status: "pending" });
+    setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: group?.name, status: "pending" }]);
     setMemberInput(p => ({ ...p, [gid]: "" }));
-    setConfirmInvite(null);
     showInviteToast(`Invite sent to ${target} ✓`, "green");
   };
 
@@ -2741,6 +2231,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
           </h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <GearBtn onOpenSettings={onOpenSettings} />
           <LogoutBtn onLogout={onLogout} />
         </div>
       </div>
@@ -2799,47 +2290,17 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
               }} />
             ))}
           </div>
-          <button onClick={addGroup} disabled={!newName.trim() || creatingGroup} style={{
-            padding: "12px", background: (!newName.trim() || creatingGroup) ? "var(--border)" : "#1C1917", color: (!newName.trim() || creatingGroup) ? "var(--text2)" : "white",
+          <button onClick={addGroup} style={{
+            padding: "10px", background: "var(--bg-dark)", color: "var(--text-inv)",
             border: "none", borderRadius: "var(--rs)", fontSize: 13, fontWeight: 600,
-            cursor: (!newName.trim() || creatingGroup) ? "not-allowed" : "pointer", fontFamily: "inherit", width: "100%",
-            transition: "box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease",
-            boxShadow: (!newName.trim() || creatingGroup) ? "none" : "0 2px 8px rgba(28,25,23,0.3)",
-          }}
-          onMouseEnter={e => { if (newName.trim() && !creatingGroup) { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
-          onMouseLeave={e => { if (newName.trim() && !creatingGroup) { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; } }}
-          >{creatingGroup ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-              <span>Creating</span>
-              <span className="loading-dots" style={{ display: "inline-flex", gap: 2 }}>
-                <span className="ld-dot">.</span>
-                <span className="ld-dot">.</span>
-                <span className="ld-dot">.</span>
-              </span>
-            </span>
-          ) : "Create Group"}</button>
+            cursor: "pointer", fontFamily: "inherit", width: "100%",
+          }}>Create Group</button>
         </div>
       )}
 
       {(() => {
-        // Only show groups where the current user is a member, and sort them:
-        // 1. Default group first
-        // 2. Groups I created (alphabetical)
-        // 3. Groups I was invited to (alphabetical)
-        const visibleGroups = groups
-          .filter(g => g.members.includes(userName))
-          .sort((a, b) => {
-            // Default group always first
-            if (a.isDefault && !b.isDefault) return -1;
-            if (!a.isDefault && b.isDefault) return 1;
-            // Then my created groups
-            const aMine = a.createdBy === userName;
-            const bMine = b.createdBy === userName;
-            if (aMine && !bMine) return -1;
-            if (!aMine && bMine) return 1;
-            // Alphabetical within same bucket
-            return a.name.localeCompare(b.name);
-          });
+        // Only show groups where the current user is a member
+        const visibleGroups = groups.filter(g => g.members.includes(userName));
         return visibleGroups.length === 0 ? (
           <EmptyState msg="No groups yet. Tap + to create!" />
         ) : (
@@ -2856,27 +2317,13 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                   border: "1px solid var(--border)", borderLeft: `3px solid ${g.color}`,
                   boxShadow: "var(--sh)", animationDelay: `${i * 0.05}s`,
                 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
-                      <span title={g.name} style={{
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+                      <span style={{
                         fontSize: 15, fontWeight: 600,
-                        wordBreak: "break-word", overflowWrap: "anywhere",
-                        minWidth: 0, flexShrink: 1,
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        minWidth: 0,
                       }}>{g.name}</span>
-                      {isCreator && !g.isDefault && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                          background: "var(--accent-lt)", color: "var(--accent)",
-                          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
-                        }}>You</span>
-                      )}
-                      {!isCreator && !g.isDefault && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                          background: "var(--bg)", color: "var(--text2)",
-                          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
-                        }}>by {g.createdBy}</span>
-                      )}
                       {isInvited && (
                         <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "var(--blue-lt)", color: "var(--blue)", textTransform: "uppercase", flexShrink: 0 }}>Invited</span>
                       )}
@@ -2885,7 +2332,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                       )}
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
-                      <span style={{ fontSize: 10, color: "var(--text2)", background: "var(--bg)", padding: "2px 8px", borderRadius: 100, whiteSpace: "nowrap" }}>{gt.length} tasks</span>
+                      <span style={{ fontSize: 10, color: "var(--text2)", background: "var(--bg)", padding: "2px 8px", borderRadius: 100 }}>{gt.length} tasks</span>
                       {!g.isDefault && isCreator && (
                         <button onClick={() => setConfirmDeleteId(g.id)} style={{ background: "none", border: "none", color: "var(--border)", cursor: "pointer", padding: 2 }}>{I.trash}</button>
                       )}
@@ -2894,29 +2341,40 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
 
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ background: "var(--border)", borderRadius: 100, height: 4, overflow: "hidden" }}>
-                      <div style={{ height: "100%", borderRadius: 100, background: "var(--green)", width: `${gt.length ? (gd/gt.length)*100 : 0}%`, transition: "width 0.5s ease" }} />
+                      <div style={{ height: "100%", borderRadius: 100, background: g.color, width: `${gt.length ? (gd/gt.length)*100 : 0}%`, transition: "width 0.5s ease" }} />
                     </div>
                     <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 3 }}>{gd}/{gt.length} completed</div>
                   </div>
 
-                  {/* Members button — opens popup */}
-                  <button onClick={() => setMembersPopup(g)} style={{
-                    display: "flex", alignItems: "center", gap: 8, width: "100%",
-                    padding: "9px 12px", border: "1px solid var(--border)",
-                    borderRadius: "var(--rs)", background: "var(--bg)",
-                    fontSize: 12, fontWeight: 600, color: "var(--text)",
-                    cursor: "pointer", fontFamily: "inherit",
-                    transition: "background 0.15s ease", marginBottom: 6,
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#F0ECE6"}
-                  onMouseLeave={e => e.currentTarget.style.background = "var(--bg)"}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                    </svg>
-                    <span>Members ({g.members.length})</span>
-                    <svg style={{ marginLeft: "auto" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </button>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Members</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
+                    {g.members.filter(m => m !== userName).length === 0 && <span style={{ fontSize: 11, color: "var(--text2)", fontStyle: "italic" }}>No other members</span>}
+                    {g.members.filter(m => m !== userName).map((m, j) => {
+                      // Can only remove a member if I am the creator OR the member is not the creator
+                      const canRemove = isCreator && m !== g.createdBy;
+                      return (
+                        <div key={j} style={{
+                          display: "flex", alignItems: "center", gap: 5,
+                          padding: canRemove ? "3px 8px 3px 3px" : "3px 10px 3px 3px", borderRadius: 100,
+                          background: "var(--bg)", border: "1px solid var(--border)", fontSize: 11,
+                        }}>
+                          <div style={{
+                            width: 20, height: 20, borderRadius: "50%", background: g.color, opacity: 0.8,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 8, fontWeight: 700, color: "white",
+                          }}>{m[0]}</div>
+                          {m}
+                          {m === g.createdBy && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", marginLeft: 2 }}>owner</span>}
+                          {canRemove && (
+                            <button onClick={() => setConfirmRemoveMember({ groupId: g.id, memberName: m, groupName: g.name })} style={{
+                              background: "none", border: "none", color: "var(--text2)", cursor: "pointer",
+                              fontSize: 13, padding: 0, marginLeft: 1, lineHeight: 1,
+                            }}>×</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
 
                   {/* pending invites for this group */}
                   {pendingSent.length > 0 && (
@@ -2946,15 +2404,10 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                         style={{ ...fld, flex: 1, textTransform: "lowercase" }}
                       />
                       <button onClick={() => sendInvite(g.id)} style={{
-                        padding: "10px 14px", background: g.color, color: "white", border: "none",
+                        padding: "8px 12px", background: g.color, color: "white", border: "none",
                         borderRadius: "var(--rs)", cursor: "pointer", flexShrink: 0,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "box-shadow 0.15s ease, transform 0.15s ease, filter 0.15s ease",
-                        boxShadow: `0 2px 8px ${g.color}55`,
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.boxShadow = `0 4px 14px ${g.color}80`; e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.filter = "brightness(0.92)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.boxShadow = `0 2px 8px ${g.color}55`; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.filter = "brightness(1)"; }}
-                      >{I.userPlus}</button>
+                      }}>{I.userPlus}</button>
                     </div>
                   )}
                 </div>
@@ -3003,131 +2456,21 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
         />
       )}
 
-      {/* send invite confirmation */}
-      {confirmInvite && (
-        <ConfirmPopup
-          size="sm"
-          title="Send invite"
-          message={`Send invite to "${confirmInvite.target}" for group "${confirmInvite.groupName}"?`}
-          confirmLabel="Send"
-          confirmColor="var(--blue)"
-          onConfirm={confirmSendInvite}
-          onCancel={() => setConfirmInvite(null)}
-        />
-      )}
-
-      {/* Members popup — shows all members with option to remove (admin only) */}
-      {membersPopup && (() => {
-        const g = groups.find(grp => grp.id === membersPopup.id) || membersPopup;
-        const isCreator = g.createdBy === userName;
-        return (
-          <div style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(28,25,23,0.55)", zIndex: 99999, padding: 20,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-          }} onClick={() => setMembersPopup(null)}>
-            <div className="si" style={{
-              background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
-              width: "calc(100% - 40px)", maxWidth: 440,
-              boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
-              maxHeight: "80vh", overflowY: "auto",
-            }} onClick={e => e.stopPropagation()}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <h4 style={{ fontSize: 17, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: g.color }} />
-                  {g.name}
-                </h4>
-                <button onClick={() => setMembersPopup(null)} style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--text2)", padding: 4, display: "flex",
-                }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
-
-              <p style={{ fontSize: 11, color: "var(--text2)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>
-                {g.members.length} {g.members.length === 1 ? "Member" : "Members"}
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(() => {
-                  // Sort: owner first, then rest alphabetically
-                  const sorted = [...g.members].sort((a, b) => {
-                    if (a === g.createdBy) return -1;
-                    if (b === g.createdBy) return 1;
-                    return a.localeCompare(b);
-                  });
-                  return sorted;
-                })().map((m, idx) => {
-                  const isOwner = m === g.createdBy;
-                  const isMe = m === userName;
-                  const canRemove = isCreator && !isOwner && !isMe;
-                  return (
-                    <div key={idx} style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "10px 12px", borderRadius: "var(--rs)",
-                      background: "var(--bg)", border: "1px solid var(--border)",
-                    }}>
-                      <div style={{
-                        width: 34, height: 34, borderRadius: "50%",
-                        background: g.color, color: "white",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 14, fontWeight: 700, flexShrink: 0,
-                      }}>{m[0]?.toUpperCase()}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {m} {isMe && <span style={{ fontSize: 10, color: "var(--text2)", fontWeight: 500 }}>(you)</span>}
-                        </div>
-                        <div style={{ fontSize: 10, color: isOwner ? "var(--accent)" : "var(--text2)", fontWeight: isOwner ? 700 : 500, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>
-                          {isOwner ? "Owner / Admin" : "Member"}
-                        </div>
-                      </div>
-                      {canRemove && (
-                        <button onClick={() => {
-                          setMembersPopup(null);
-                          setConfirmRemoveMember({ groupId: g.id, memberName: m, groupName: g.name });
-                        }} style={{
-                          padding: "6px 12px", border: "1px solid var(--red)",
-                          borderRadius: "var(--rs)", background: "transparent",
-                          color: "var(--red)", fontSize: 11, fontWeight: 600,
-                          cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
-                          transition: "background 0.15s ease",
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = "var(--red)"; e.currentTarget.style.color = "white"; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--red)"; }}
-                        >Remove</button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {!isCreator && (
-                <p style={{ fontSize: 10.5, color: "var(--text2)", textAlign: "center", marginTop: 14, fontStyle: "italic" }}>
-                  Only the group owner can remove members
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
       {inviteToast && <Toast message={inviteToast.message} type={inviteToast.type} />}
 
       {/* floating action button - add group */}
-      <button onClick={toggleForm} data-tour="fab-group" className="fab-group" style={{
+      <button onClick={toggleForm} className="fab-group" style={{
         position: "fixed", bottom: `calc(80px + env(safe-area-inset-bottom, 0px))`,
-        width: 54, height: 54, borderRadius: "50%", border: "none",
-        background: "#1C1917", color: "white",
+        width: 52, height: 52, borderRadius: "50%", border: "none",
+        background: "var(--bg-dark)", color: "var(--text-inv)",
         cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        boxShadow: "0 6px 22px rgba(28,25,23,0.45)",
+        boxShadow: "0 6px 20px rgba(28,25,23,0.25)",
         transition: "transform 0.25s ease, box-shadow 0.15s ease",
         transform: showForm ? "rotate(45deg) scale(1.05)" : "rotate(0) scale(1)",
         zIndex: 90,
       }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 10px 30px rgba(28,25,23,0.55)"}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 22px rgba(28,25,23,0.45)"}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(28,25,23,0.35)"}
+      onMouseLeave={e => e.currentTarget.style.boxShadow = "0 6px 20px rgba(28,25,23,0.25)"}
       >{I.plus}</button>
     </div>
   );
@@ -3247,38 +2590,286 @@ function Pill({ text, bg, color: clr }) {
   );
 }
 
-function LogoutBtn({ onLogout }) {
-  const [showConfirm, setShowConfirm] = useState(false);
+function GearBtn({ onOpenSettings }) {
   return (
-    <>
-      <button onClick={() => setShowConfirm(true)} style={{
-        display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
-        border: "1px solid var(--border)", borderRadius: 8,
-        background: "var(--bg-card)", cursor: "pointer", fontFamily: "inherit",
-        fontSize: 11, fontWeight: 600, color: "var(--text2)",
-        transition: "all 0.15s ease",
-        WebkitTapHighlightColor: "transparent",
-        minHeight: 32,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
-      onTouchStart={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
-      onTouchEnd={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Logout
-      </button>
-      {showConfirm && (
-        <ConfirmPopup
-          title="Log out"
-          message="Are you sure you want to log out? You'll need to sign in again next time."
-          confirmLabel="Log out"
-          confirmColor="var(--red)"
-          onConfirm={() => { setShowConfirm(false); onLogout(); }}
-          onCancel={() => setShowConfirm(false)}
-        />
+    <button onClick={onOpenSettings} style={{
+      display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+      border: "1px solid var(--border)", borderRadius: 8,
+      background: "var(--bg-card)", cursor: "pointer", fontFamily: "inherit",
+      fontSize: 11, fontWeight: 600, color: "var(--text2)",
+      transition: "all 0.15s ease", WebkitTapHighlightColor: "transparent", minHeight: 32,
+    }}
+    onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.background = "var(--accent-lt)"; }}
+    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+    onTouchStart={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+    onTouchEnd={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+    >
+      {I.gear}
+    </button>
+  );
+}
+
+function Toggle({ on, onChange }) {
+  return (
+    <button onClick={() => onChange(!on)} style={{
+      width: 44, height: 26, borderRadius: 100, padding: 3,
+      background: on ? "var(--accent)" : "var(--border)",
+      border: "none", cursor: "pointer", transition: "background 0.2s ease",
+      display: "flex", alignItems: "center", flexShrink: 0,
+    }}>
+      <div style={{
+        width: 20, height: 20, borderRadius: "50%", background: "white",
+        transition: "transform 0.2s ease",
+        transform: on ? "translateX(18px)" : "translateX(0)",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+      }} />
+    </button>
+  );
+}
+
+function NotifPermissionPrompt({ onEnable, onDismiss }) {
+  return (
+    <div style={{
+      position: "fixed", bottom: 90, left: 0, right: 0,
+      display: "flex", justifyContent: "center", zIndex: 280, padding: "0 16px",
+      animation: "fu 0.4s ease both",
+    }}>
+      <div style={{
+        background: "var(--bg-card)", borderRadius: "var(--r)", padding: "18px 20px",
+        boxShadow: "0 8px 32px rgba(28,25,23,0.18)", border: "1px solid var(--border)",
+        maxWidth: 480, width: "100%",
+      }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12, background: "var(--accent-lt)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            color: "var(--accent)",
+          }}>
+            {I.bell}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Want reminders for your tasks?</div>
+            <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.5, marginBottom: 14 }}>
+              TASKYA can ping you before tasks are due, plus a daily summary each morning.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={onEnable} style={{
+                padding: "8px 18px", background: "var(--bg-dark)", color: "white",
+                border: "none", borderRadius: "var(--rs)", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>Enable reminders</button>
+              <button onClick={onDismiss} style={{
+                padding: "8px 14px", background: "transparent", color: "var(--text2)",
+                border: "1.5px solid var(--border)", borderRadius: "var(--rs)", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>Maybe later</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermission, setNotifPermission, onBack, showGlobalToast, allTasks }) {
+  const [saving, setSaving] = useState(false);
+
+  const update = async (patch) => {
+    const next = { ...notifSettings, ...patch };
+    setSaving(true);
+    await saveNotifSettings(next);
+    setSaving(false);
+  };
+
+  const requestPermission = async () => {
+    if (typeof Notification === "undefined") {
+      showGlobalToast("Notifications not supported on this browser", "dark");
+      return;
+    }
+    const result = await Notification.requestPermission();
+    setNotifPermission(result);
+    if (result === "granted") {
+      await update({ browser_permission_granted: true });
+      showGlobalToast("🔔 Reminders enabled!", "green");
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        reg.showNotification("🎉 TASKYA reminders are on", {
+          body: "You'll get notified before tasks are due.",
+          icon: "/taskya-icon-192.png", tag: "notif-test",
+        });
+      } catch {}
+    } else {
+      showGlobalToast("Permission denied — check browser settings", "dark");
+    }
+  };
+
+  const sendTestNotif = async () => {
+    if (notifPermission !== "granted") { showGlobalToast("Enable browser permission first", "dark"); return; }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      reg.showNotification("🔔 TASKYA test notification", {
+        body: "Reminders are working correctly.",
+        icon: "/taskya-icon-192.png", tag: "notif-manual-test",
+      });
+      showGlobalToast("Test notification sent!", "green");
+    } catch { showGlobalToast("Couldn't send test notification", "dark"); }
+  };
+
+  const permBadge = (p) => {
+    const map = {
+      granted: { label: "Granted", bg: "var(--green-lt)", color: "var(--green)" },
+      denied:  { label: "Denied",  bg: "var(--red-lt)",   color: "var(--red)"   },
+      default: { label: "Not asked", bg: "var(--bg)",      color: "var(--text2)" },
+    };
+    const c = map[p] || map.default;
+    return (
+      <span style={{ padding: "3px 9px", borderRadius: 100, fontSize: 10, fontWeight: 700, background: c.bg, color: c.color }}>
+        {c.label}
+      </span>
+    );
+  };
+
+  const fld = {
+    padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+    fontSize: 13, fontFamily: "inherit", background: "var(--bg)", color: "var(--text)", outline: "none",
+  };
+
+  const Row = ({ label, sub, children }) => (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      gap: 12, padding: "14px 0", borderBottom: "1px solid var(--border)",
+    }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2 }}>{sub}</div>}
+      </div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "20px var(--page-px, 18px)", minHeight: "calc(100vh - 90px)", background: "var(--bg)" }}>
+      {/* header */}
+      <div className="fu" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <button onClick={onBack} style={{
+          width: 36, height: 36, borderRadius: "50%", border: "1px solid var(--border)",
+          background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          color: "var(--text2)", flexShrink: 0,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
+          Settings<span style={{ color: "var(--accent)" }}>.</span>
+        </h2>
+      </div>
+
+      {/* Notifications section */}
+      <div className="fu" style={{
+        background: "var(--bg-card)", borderRadius: "var(--r)", padding: "4px 18px",
+        border: "1px solid var(--border)", boxShadow: "var(--sh)", marginBottom: 16, animationDelay: "0.05s",
+      }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "16px 0 2px" }}>
+          Notifications
+        </div>
+
+        <Row label="Enable notifications" sub="Master toggle for all reminders">
+          <Toggle on={notifSettings.enabled} onChange={v => update({ enabled: v })} />
+        </Row>
+
+        <Row label="Browser permission" sub="Required for native notifications">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {permBadge(notifPermission)}
+            {notifPermission !== "granted" && (
+              <button onClick={requestPermission} style={{
+                padding: "6px 12px", background: "var(--bg-dark)", color: "white",
+                border: "none", borderRadius: "var(--rs)", fontSize: 11, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>Allow</button>
+            )}
+          </div>
+        </Row>
+
+        <Row label="Morning summary" sub="Daily task overview at your chosen time">
+          <Toggle on={notifSettings.morning_summary} onChange={v => update({ morning_summary: v })} />
+        </Row>
+
+        {notifSettings.morning_summary && (
+          <Row label="Morning time" sub="">
+            <input type="time" value={notifSettings.morning_time} onChange={e => update({ morning_time: e.target.value })} style={fld} />
+          </Row>
+        )}
+
+        <Row label="Evening reminder" sub="Check-in for pending tasks">
+          <Toggle on={notifSettings.evening_reminder} onChange={v => update({ evening_reminder: v })} />
+        </Row>
+
+        {notifSettings.evening_reminder && (
+          <Row label="Evening time" sub="">
+            <input type="time" value={notifSettings.evening_time} onChange={e => update({ evening_time: e.target.value })} style={fld} />
+          </Row>
+        )}
+
+        <Row label="Default reminder" sub="How long before due time to alert you">
+          <select value={notifSettings.default_pre_due} onChange={e => update({ default_pre_due: e.target.value })} style={{ ...fld, cursor: "pointer" }}>
+            <option value="off">Off</option>
+            <option value="15m">15 minutes</option>
+            <option value="1h">1 hour</option>
+            <option value="3h">3 hours</option>
+            <option value="1d">1 day</option>
+          </select>
+        </Row>
+
+        <div style={{ padding: "16px 0 14px" }}>
+          <button onClick={sendTestNotif} style={{
+            width: "100%", padding: "11px", border: "1.5px solid var(--border)",
+            borderRadius: "var(--rs)", background: "var(--bg)", color: "var(--text2)",
+            fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; }}
+          >
+            Send test notification
+          </button>
+        </div>
+      </div>
+
+      {/* info note */}
+      <div className="fu" style={{
+        background: "var(--blue-lt)", borderRadius: "var(--rs)", padding: "12px 16px",
+        border: "1px solid rgba(37,99,235,0.15)", animationDelay: "0.1s",
+      }}>
+        <div style={{ fontSize: 11, color: "var(--blue)", lineHeight: 1.6 }}>
+          ℹ️ Notifications work when TASKYA is open or running in the background. Per-task reminder overrides are available by tapping any pending task.
+        </div>
+      </div>
+
+      {saving && (
+        <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: "var(--text2)" }}>Saving…</div>
       )}
-    </>
+    </div>
+  );
+}
+
+function LogoutBtn({ onLogout }) {
+  return (
+    <button onClick={onLogout} style={{
+      display: "flex", alignItems: "center", gap: 5, padding: "6px 12px",
+      border: "1px solid var(--border)", borderRadius: 8,
+      background: "var(--bg-card)", cursor: "pointer", fontFamily: "inherit",
+      fontSize: 11, fontWeight: 600, color: "var(--text2)",
+      transition: "all 0.15s ease",
+      WebkitTapHighlightColor: "transparent",
+      minHeight: 32,
+    }}
+    onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
+    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+    onTouchStart={e => { e.currentTarget.style.borderColor = "var(--red)"; e.currentTarget.style.color = "var(--red)"; e.currentTarget.style.background = "var(--red-lt)"; }}
+    onTouchEnd={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.background = "var(--bg-card)"; }}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Logout
+    </button>
   );
 }
 
@@ -3307,11 +2898,7 @@ function EmptyState({ msg }) {
 }
 
 function Toast({ message, type }) {
-  const bg = type === "green" ? "var(--green)" : type === "red" ? "var(--red)" : type === "amber" ? "var(--accent)" : "var(--bg-dark)";
-  // Only show trash icon when message is explicitly about deletion
-  const isDeleteMsg = type === "red" && /delete|deleted|removed|remove/i.test(message);
-  // Show warning/info icon for other red toasts (errors, validation, decline)
-  const isInfoMsg = type === "red" && !isDeleteMsg;
+  const bg = type === "green" ? "var(--green)" : type === "red" ? "var(--red)" : "var(--bg-dark)";
   return (
     <div style={{
       position: "fixed", top: 20, left: 0, right: 0,
@@ -3325,15 +2912,10 @@ function Toast({ message, type }) {
         animation: "fu 0.3s ease both",
         whiteSpace: "nowrap", fontFamily: "'DM Sans', sans-serif",
         display: "flex", alignItems: "center", gap: 6,
-        pointerEvents: "auto", maxWidth: "90vw", overflow: "hidden", textOverflow: "ellipsis",
+        pointerEvents: "auto",
       }}>
         {type === "green" && I.check}
-        {isDeleteMsg && I.trash}
-        {isInfoMsg && (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-        )}
+        {type === "red" && I.trash}
         {message}
       </div>
     </div>

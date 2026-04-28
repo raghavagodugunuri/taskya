@@ -417,42 +417,55 @@ export default function TaskManager() {
       }
     }
 
-    // 4. Create "My Group" if user has no default group yet.
-    // Query DB directly rather than relying on loaded groups (avoids is_default type mismatches)
-    const allUserGroups = await dbGet("taskya_groups", { created_by: uname });
-    const existingDefault = (allUserGroups || []).find(g => g.is_default === true || g.is_default === 1 || g.is_default === "true");
+    // 4. Ensure user has a default group.
+    // Helper: check if a group is the user's default. Handles all is_default representations
+    // PLUS the legacy id-pattern (mygroup_{user}_*) for groups where is_default may be null.
+    const isDefaultGroup = (g) => {
+      const flag = g.is_default;
+      if (flag === true || flag === 1 || flag === "true") return true;
+      if (g.id && typeof g.id === "string" && g.id.startsWith(`mygroup_${uname}_`)) return true;
+      return false;
+    };
 
-    if (existingDefault) {
-      // Group exists — make sure it's in loadedGroups (it might not be if member row was missing)
-      const alreadyLoaded = loadedGroups.some(g => g.id === existingDefault.id);
-      if (!alreadyLoaded) {
+    const hasDefault = loadedGroups.some(g => isDefaultGroup(g) && g.created_by === uname);
+
+    if (!hasDefault) {
+      // Try to find an existing default in the DB (in case user lost membership row)
+      let recovered = null;
+      try {
+        const userGroups = await dbGet("taskya_groups", { created_by: uname });
+        recovered = (userGroups || []).find(isDefaultGroup);
+      } catch (e) { console.warn("default lookup failed:", e); }
+
+      if (recovered) {
+        // Group exists — re-add membership (idempotent) and load it
         try {
-          await dbInsert("taskya_group_members", { group_id: existingDefault.id, username: uname });
-        } catch {} // might already be a member
-        const gMembers = await dbGet("taskya_group_members", { group_id: existingDefault.id });
+          await dbInsert("taskya_group_members", { group_id: recovered.id, username: uname });
+        } catch {} // already a member, ignore
+        const gMembers = await dbGet("taskya_group_members", { group_id: recovered.id });
         loadedGroups.push({
-          ...existingDefault,
+          ...recovered,
           members: (gMembers || []).map(m => m.username),
-          createdBy: existingDefault.created_by,
+          createdBy: recovered.created_by,
           isDefault: true,
         });
-      }
-    } else {
-      // No default group at all — create one fresh
-      const gId = `mygroup_${uname}_${Date.now()}`;
-      try {
-        await dbInsert("taskya_groups", {
-          id: gId, name: "My Group", color: "#D97706",
-          created_by: uname, is_default: true,
-        });
-        await dbInsert("taskya_group_members", { group_id: gId, username: uname });
-        loadedGroups.push({
-          id: gId, name: "My Group", color: "#D97706",
-          createdBy: uname, isDefault: true, is_default: true,
-          created_by: uname, members: [uname],
-        });
-      } catch (e) {
-        console.warn("Default group creation error (may already exist):", e);
+      } else {
+        // Truly new user — create the default group
+        const gId = `mygroup_${uname}_${Date.now()}`;
+        try {
+          await dbInsert("taskya_groups", {
+            id: gId, name: "My Group", color: "#D97706",
+            created_by: uname, is_default: true,
+          });
+          await dbInsert("taskya_group_members", { group_id: gId, username: uname });
+          loadedGroups.push({
+            id: gId, name: "My Group", color: "#D97706",
+            createdBy: uname, isDefault: true, is_default: true,
+            created_by: uname, members: [uname],
+          });
+        } catch (e) {
+          console.error("Default group creation failed:", e);
+        }
       }
     }
     setGroups(loadedGroups);
@@ -1716,7 +1729,11 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   New Due Time
                 </label>
-                <TimePicker value={newDueTime || "09:00"} onChange={v => setNewDueTime(v)} />
+                <input type="time" value={newDueTime} onChange={e => setNewDueTime(e.target.value)} style={{
+                  width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
+                  borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
+                  background: "var(--bg)", color: "var(--text)", outline: "none",
+                }} />
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -2133,7 +2150,7 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
             </div>
             <div>
               <label style={lbl}>Due Time</label>
-              <TimePicker value={form.dueTime || "09:00"} onChange={v => { setForm({...form, dueTime: v}); setDueDateManual(true); }} />
+              <input type="time" value={form.dueTime || ""} onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }} style={fld} />
             </div>
           </div>
         )}
@@ -2721,40 +2738,6 @@ function NotifPermissionPrompt({ onEnable, onDismiss }) {
   );
 }
 
-function TimePicker({ value, onChange, disabled }) {
-  // value is "HH:MM" 24h string
-  const [h, m] = (value || "09:00").split(":").map(Number);
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
-
-  const fmt2 = n => String(n).padStart(2, "0");
-  const fmtHour = h => {
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12 = h % 12 || 12;
-    return `${fmt2(h12)} ${ampm}`;
-  };
-
-  const selStyle = {
-    padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
-    fontSize: 13, fontFamily: "inherit", background: disabled ? "var(--bg)" : "var(--bg-card)",
-    color: disabled ? "var(--text2)" : "var(--text)", cursor: disabled ? "not-allowed" : "pointer",
-    outline: "none", WebkitAppearance: "none", appearance: "none",
-    minWidth: 90,
-  };
-
-  return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <select value={h} disabled={disabled} onChange={e => onChange(`${fmt2(Number(e.target.value))}:${fmt2(m)}`)} style={selStyle}>
-        {hours.map(i => <option key={i} value={i}>{fmtHour(i)}</option>)}
-      </select>
-      <span style={{ color: "var(--text2)", fontWeight: 700 }}>:</span>
-      <select value={m} disabled={disabled} onChange={e => onChange(`${fmt2(h)}:${fmt2(Number(e.target.value))}`)} style={{ ...selStyle, minWidth: 68 }}>
-        {minutes.map(i => <option key={i} value={i}>{fmt2(i)}</option>)}
-      </select>
-    </div>
-  );
-}
-
 function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermission, setNotifPermission, onBack, showGlobalToast, allTasks }) {
   // Draft state — all edits happen here until Save is pressed
   const [draft, setDraft] = useState({ ...notifSettings });
@@ -2930,7 +2913,13 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
 
         {draft.morning_summary && (
           <Row label="Morning time" sub="">
-            <TimePicker value={draft.morning_time} disabled={off} onChange={v => patch({ morning_time: v })} />
+            <input type="time" value={draft.morning_time} disabled={off} onChange={e => patch({ morning_time: e.target.value })} style={{
+              padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+              fontSize: 13, fontFamily: "inherit",
+              background: off ? "var(--bg)" : "var(--bg-card)",
+              color: off ? "var(--text2)" : "var(--text)",
+              cursor: off ? "not-allowed" : "pointer", outline: "none",
+            }} />
           </Row>
         )}
 
@@ -2941,7 +2930,13 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
 
         {draft.evening_reminder && (
           <Row label="Evening time" sub="">
-            <TimePicker value={draft.evening_time} disabled={off} onChange={v => patch({ evening_time: v })} />
+            <input type="time" value={draft.evening_time} disabled={off} onChange={e => patch({ evening_time: e.target.value })} style={{
+              padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+              fontSize: 13, fontFamily: "inherit",
+              background: off ? "var(--bg)" : "var(--bg-card)",
+              color: off ? "var(--text2)" : "var(--text)",
+              cursor: off ? "not-allowed" : "pointer", outline: "none",
+            }} />
           </Row>
         )}
 

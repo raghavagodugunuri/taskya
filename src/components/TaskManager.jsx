@@ -417,23 +417,43 @@ export default function TaskManager() {
       }
     }
 
-    // 4. Create "My Group" if user has no default group yet
-    // Check both is_default (DB field) and isDefault (mapped field)
-    const hasDefault = loadedGroups.some(
-      g => (g.is_default || g.isDefault) && g.created_by === uname
-    );
-    if (!hasDefault) {
+    // 4. Create "My Group" if user has no default group yet.
+    // Query DB directly rather than relying on loaded groups (avoids is_default type mismatches)
+    const allUserGroups = await dbGet("taskya_groups", { created_by: uname });
+    const existingDefault = (allUserGroups || []).find(g => g.is_default === true || g.is_default === 1 || g.is_default === "true");
+
+    if (existingDefault) {
+      // Group exists — make sure it's in loadedGroups (it might not be if member row was missing)
+      const alreadyLoaded = loadedGroups.some(g => g.id === existingDefault.id);
+      if (!alreadyLoaded) {
+        try {
+          await dbInsert("taskya_group_members", { group_id: existingDefault.id, username: uname });
+        } catch {} // might already be a member
+        const gMembers = await dbGet("taskya_group_members", { group_id: existingDefault.id });
+        loadedGroups.push({
+          ...existingDefault,
+          members: (gMembers || []).map(m => m.username),
+          createdBy: existingDefault.created_by,
+          isDefault: true,
+        });
+      }
+    } else {
+      // No default group at all — create one fresh
       const gId = `mygroup_${uname}_${Date.now()}`;
-      await dbInsert("taskya_groups", {
-        id: gId, name: "My Group", color: "#D97706",
-        created_by: uname, is_default: true,
-      });
-      await dbInsert("taskya_group_members", { group_id: gId, username: uname });
-      loadedGroups.push({
-        id: gId, name: "My Group", color: "#D97706",
-        createdBy: uname, isDefault: true, is_default: true,
-        created_by: uname, members: [uname],
-      });
+      try {
+        await dbInsert("taskya_groups", {
+          id: gId, name: "My Group", color: "#D97706",
+          created_by: uname, is_default: true,
+        });
+        await dbInsert("taskya_group_members", { group_id: gId, username: uname });
+        loadedGroups.push({
+          id: gId, name: "My Group", color: "#D97706",
+          createdBy: uname, isDefault: true, is_default: true,
+          created_by: uname, members: [uname],
+        });
+      } catch (e) {
+        console.warn("Default group creation error (may already exist):", e);
+      }
     }
     setGroups(loadedGroups);
 
@@ -1580,7 +1600,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 color={isMissed ? "var(--red)" : undefined}
                 text={task.dueTime}
               />}
-              <StatusBadge status={task.status} />
+              <StatusBadge status={task.status} hide={isDone} />
               {task.rescheduled && !isMissed && (
                 <span style={{
                   padding: "2px 7px", borderRadius: 5, fontSize: 9, fontWeight: 700,
@@ -1631,7 +1651,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
             <button onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }} style={{
               background: "none", border: "none", color: isMissed ? "rgba(220,38,38,0.3)" : "var(--border)", cursor: "pointer",
               padding: 3, borderRadius: 6, transition: "color 0.15s ease",
-              display: canDelete ? "block" : "none",
+              display: canDelete && !isDone ? "block" : "none",
             }}
             onMouseEnter={e => e.currentTarget.style.color = "var(--red)"}
             onMouseLeave={e => e.currentTarget.style.color = isMissed ? "rgba(220,38,38,0.3)" : "var(--border)"}
@@ -1696,11 +1716,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   New Due Time
                 </label>
-                <input type="time" value={newDueTime} onChange={e => setNewDueTime(e.target.value)} style={{
-                  width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
-                  borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
-                  background: "var(--bg)", color: "var(--text)", outline: "none",
-                }} />
+                <TimePicker value={newDueTime || "09:00"} onChange={v => setNewDueTime(v)} />
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
@@ -2117,7 +2133,7 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
             </div>
             <div>
               <label style={lbl}>Due Time</label>
-              <input type="time" value={form.dueTime || ""} onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }} style={fld} />
+              <TimePicker value={form.dueTime || "09:00"} onChange={v => { setForm({...form, dueTime: v}); setDueDateManual(true); }} />
             </div>
           </div>
         )}
@@ -2597,7 +2613,8 @@ function Rewards({ tasks, onLogout }) {
 
 /* ═══════════════════════ SHARED ═══════════════════════ */
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, hide }) {
+  if (hide) return null;
   const c = {
     completed: { bg: "var(--green-lt)", color: "var(--green)", label: "Done" },
     pending: { bg: "var(--accent-lt)", color: "var(--accent)", label: "Pending" },
@@ -2855,11 +2872,27 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
         <h2 style={{ flex: 1, fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
           Settings<span style={{ color: "var(--accent)" }}>.</span>
         </h2>
-        {isDirty && (
-          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", background: "var(--accent-lt)", padding: "3px 8px", borderRadius: 100 }}>
-            Unsaved
-          </span>
-        )}
+        {/* Save button — top right */}
+        <button
+          onClick={handleSave}
+          disabled={saving || !isDirty}
+          style={{
+            padding: "8px 16px", border: "none", borderRadius: "var(--rs)",
+            fontSize: 12, fontWeight: 700, cursor: (!isDirty || saving) ? "not-allowed" : "pointer",
+            fontFamily: "inherit", transition: "all 0.15s ease",
+            background: isDirty ? "var(--bg-dark)" : "var(--border)",
+            color: isDirty ? "var(--text-inv)" : "var(--text2)",
+            display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+            minHeight: 36,
+          }}
+        >
+          {saving ? (
+            <>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/></svg>
+              Saving…
+            </>
+          ) : "Save"}
+        </button>
       </div>
 
       {/* ── Notifications card ── */}
@@ -2958,28 +2991,6 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
           ℹ️ Notifications fire on every device where TASKYA is open. Tasks sync across devices every 30 seconds automatically. Per-task reminder overrides are available by tapping any pending task.
         </div>
       </div>
-
-      {/* ── Save button ── */}
-      <button
-        onClick={handleSave}
-        disabled={saving || !isDirty}
-        style={{
-          width: "100%", padding: "14px", border: "none",
-          borderRadius: "var(--rs)", fontSize: 14, fontWeight: 700,
-          cursor: (!isDirty || saving) ? "not-allowed" : "pointer",
-          fontFamily: "inherit", transition: "all 0.15s ease",
-          background: isDirty ? "var(--bg-dark)" : "var(--border)",
-          color: isDirty ? "var(--text-inv)" : "var(--text2)",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-        }}
-      >
-        {saving ? (
-          <>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/></svg>
-            Saving…
-          </>
-        ) : isDirty ? "Save changes" : "No changes to save"}
-      </button>
 
       {/* ── Unsaved changes warning popup ── */}
       {showUnsavedWarning && (

@@ -385,71 +385,103 @@ export default function TaskManager() {
   }, []);
 
   // Load all data from Supabase on mount / login
+  // Core data fetcher — shared by initial load and silent refresh
+  const fetchAllData = async (uname) => {
+    // 0. Load user row for notification settings
+    const userRows = await dbGet("taskya_users", { username: uname });
+    if (userRows && userRows[0] && userRows[0].notification_settings) {
+      setNotifSettings(prev => {
+        const merged = { ...DEFAULT_NOTIF_SETTINGS, ...userRows[0].notification_settings };
+        // Only update if something actually changed (avoids re-render loops)
+        return JSON.stringify(prev) !== JSON.stringify(merged) ? merged : prev;
+      });
+    }
+
+    // 1. Get group IDs this user belongs to
+    const memberRows = await dbGet("taskya_group_members", { username: uname });
+    const memberGroupIds = (Array.isArray(memberRows) ? memberRows : []).map(m => m.group_id);
+
+    let loadedGroups = [];
+    if (memberGroupIds.length > 0) {
+      // 2. Load those groups
+      const groupsRaw = await dbGetIn("taskya_groups", "id", memberGroupIds);
+      // 3. Load members for each group
+      for (const g of (groupsRaw || [])) {
+        const gMembers = await dbGet("taskya_group_members", { group_id: g.id });
+        loadedGroups.push({
+          ...g,
+          members: (gMembers || []).map(m => m.username),
+          createdBy: g.created_by,
+          isDefault: !!g.is_default,
+        });
+      }
+    }
+
+    // 4. Create "My Group" if user has no default group yet
+    // Check both is_default (DB field) and isDefault (mapped field)
+    const hasDefault = loadedGroups.some(
+      g => (g.is_default || g.isDefault) && g.created_by === uname
+    );
+    if (!hasDefault) {
+      const gId = `mygroup_${uname}_${Date.now()}`;
+      await dbInsert("taskya_groups", {
+        id: gId, name: "My Group", color: "#D97706",
+        created_by: uname, is_default: true,
+      });
+      await dbInsert("taskya_group_members", { group_id: gId, username: uname });
+      loadedGroups.push({
+        id: gId, name: "My Group", color: "#D97706",
+        createdBy: uname, isDefault: true, is_default: true,
+        created_by: uname, members: [uname],
+      });
+    }
+    setGroups(loadedGroups);
+
+    // 5. Load all tasks for user's groups
+    const allGroupIds = loadedGroups.map(g => g.id);
+    let loadedTasks = [];
+    if (allGroupIds.length > 0) {
+      const tasksRaw = await dbGetIn("taskya_tasks", "group_id", allGroupIds);
+      loadedTasks = (tasksRaw || []).map(t => ({
+        ...t, id: t.id, group: t.group_name, groupId: t.group_id,
+        createdBy: t.created_by, createdAt: t.created_at,
+        dueDate: t.due_date, dueTime: t.due_time,
+        completedAt: t.completed_at, activity: t.activity || [],
+        notify_before: t.notify_before || null,
+      }));
+    }
+    setAllTasks(loadedTasks);
+
+    // 6. Load invitations sent to this user
+    const invRows = await dbGet("taskya_invitations", { to_user: uname });
+    setInvitations((invRows || []).map(inv => ({
+      id: inv.id, groupId: inv.group_id, groupName: inv.group_name,
+      from: inv.from_user, to: inv.to_user, status: inv.status,
+    })));
+  };
+
+  // Full load (shows spinner)
   const loadData = async (uname) => {
     setLoading(true);
-    try {
-      // 0. Load user row for notification settings
-      const userRows = await dbGet("taskya_users", { username: uname });
-      if (userRows && userRows[0] && userRows[0].notification_settings) {
-        setNotifSettings({ ...DEFAULT_NOTIF_SETTINGS, ...userRows[0].notification_settings });
-      }
-
-      // 1. Get group IDs this user belongs to
-      const memberRows = await dbGet("taskya_group_members", { username: uname });
-      const memberGroupIds = (Array.isArray(memberRows) ? memberRows : []).map(m => m.group_id);
-
-      let loadedGroups = [];
-      if (memberGroupIds.length > 0) {
-        // 2. Load those groups
-        const groupsRaw = await dbGetIn("taskya_groups", "id", memberGroupIds);
-        // 3. Load members for each group
-        for (const g of (groupsRaw || [])) {
-          const gMembers = await dbGet("taskya_group_members", { group_id: g.id });
-          loadedGroups.push({
-            ...g, members: (gMembers || []).map(m => m.username),
-            createdBy: g.created_by, isDefault: g.is_default,
-          });
-        }
-      }
-
-      // 4. Create "My Group" if user has no default group yet
-      const hasDefault = loadedGroups.some(g => g.is_default && g.created_by === uname);
-      if (!hasDefault) {
-        const gId = `mygroup_${uname}_${Date.now()}`;
-        await dbInsert("taskya_groups", { id: gId, name: "My Group", color: "#D97706", created_by: uname, is_default: true });
-        await dbInsert("taskya_group_members", { group_id: gId, username: uname });
-        loadedGroups.push({ id: gId, name: "My Group", color: "#D97706", createdBy: uname, isDefault: true, is_default: true, created_by: uname, members: [uname] });
-      }
-      setGroups(loadedGroups);
-
-      // 5. Load all tasks for user's groups
-      const allGroupIds = loadedGroups.map(g => g.id);
-      let loadedTasks = [];
-      if (allGroupIds.length > 0) {
-        const tasksRaw = await dbGetIn("taskya_tasks", "group_id", allGroupIds);
-        loadedTasks = (tasksRaw || []).map(t => ({
-          ...t, id: t.id, group: t.group_name, groupId: t.group_id,
-          createdBy: t.created_by, createdAt: t.created_at,
-          dueDate: t.due_date, dueTime: t.due_time,
-          completedAt: t.completed_at, activity: t.activity || [],
-        }));
-      }
-      setAllTasks(loadedTasks);
-
-      // 6. Load invitations sent to this user
-      const invRows = await dbGet("taskya_invitations", { to_user: uname });
-      setInvitations((invRows || []).map(inv => ({
-        id: inv.id, groupId: inv.group_id, groupName: inv.group_name,
-        from: inv.from_user, to: inv.to_user, status: inv.status,
-      })));
-
-    } catch (e) { console.error("Load error:", e); }
+    try { await fetchAllData(uname); } catch (e) { console.error("Load error:", e); }
     setLoading(false);
+  };
+
+  // Silent reload (no spinner — used for polling & after mutations)
+  const silentReload = async (uname) => {
+    try { await fetchAllData(uname); } catch (e) { console.error("Silent reload error:", e); }
   };
 
   useEffect(() => {
     if (loggedIn && userName) { loadData(userName); }
     else { setLoading(false); }
+  }, [loggedIn, userName]);
+
+  // ── 30-second polling for cross-device sync (fix #6 & #7) ──
+  useEffect(() => {
+    if (!loggedIn || !userName) return;
+    const iv = setInterval(() => silentReload(userName), 30000);
+    return () => clearInterval(iv);
   }, [loggedIn, userName]);
 
   // Persist session locally
@@ -493,6 +525,7 @@ export default function TaskManager() {
     invitations={invitations} setInvitations={setInvitations}
     allTasks={allTasks} setAllTasks={setAllTasks}
     reloadData={() => loadData(userName)}
+    silentReload={() => silentReload(userName)}
     notifSettings={notifSettings} setNotifSettings={setNotifSettings} />;
 }
 
@@ -2671,33 +2704,94 @@ function NotifPermissionPrompt({ onEnable, onDismiss }) {
   );
 }
 
-function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermission, setNotifPermission, onBack, showGlobalToast, allTasks }) {
-  const [saving, setSaving] = useState(false);
+function TimePicker({ value, onChange, disabled }) {
+  // value is "HH:MM" 24h string
+  const [h, m] = (value || "09:00").split(":").map(Number);
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
-  const update = async (patch) => {
-    const next = { ...notifSettings, ...patch };
+  const fmt2 = n => String(n).padStart(2, "0");
+  const fmtHour = h => {
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${fmt2(h12)} ${ampm}`;
+  };
+
+  const selStyle = {
+    padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+    fontSize: 13, fontFamily: "inherit", background: disabled ? "var(--bg)" : "var(--bg-card)",
+    color: disabled ? "var(--text2)" : "var(--text)", cursor: disabled ? "not-allowed" : "pointer",
+    outline: "none", WebkitAppearance: "none", appearance: "none",
+    minWidth: 90,
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <select value={h} disabled={disabled} onChange={e => onChange(`${fmt2(Number(e.target.value))}:${fmt2(m)}`)} style={selStyle}>
+        {hours.map(i => <option key={i} value={i}>{fmtHour(i)}</option>)}
+      </select>
+      <span style={{ color: "var(--text2)", fontWeight: 700 }}>:</span>
+      <select value={m} disabled={disabled} onChange={e => onChange(`${fmt2(h)}:${fmt2(Number(e.target.value))}`)} style={{ ...selStyle, minWidth: 68 }}>
+        {minutes.map(i => <option key={i} value={i}>{fmt2(i)}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermission, setNotifPermission, onBack, showGlobalToast, allTasks }) {
+  // Draft state — all edits happen here until Save is pressed
+  const [draft, setDraft] = useState({ ...notifSettings });
+  const [saving, setSaving] = useState(false);
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false);
+
+  // If notifSettings changes externally (polling) and user has no unsaved edits, sync draft
+  useEffect(() => {
+    setDraft(prev => {
+      const isDirtyNow = JSON.stringify(prev) !== JSON.stringify(notifSettings);
+      // Only override draft if user hasn't made changes yet
+      const wasClean = JSON.stringify(prev) === JSON.stringify(notifSettings);
+      return wasClean ? { ...notifSettings } : prev;
+    });
+  }, [JSON.stringify(notifSettings)]);
+
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(notifSettings);
+  const off = !draft.enabled; // master toggle off → disable everything else
+
+  const patch = (obj) => setDraft(prev => ({ ...prev, ...obj }));
+
+  const handleSave = async () => {
     setSaving(true);
-    await saveNotifSettings(next);
+    await saveNotifSettings(draft);
     setSaving(false);
+    showGlobalToast("Settings saved ✓", "green");
+  };
+
+  const handleBack = () => {
+    if (isDirty) { setShowUnsavedWarning(true); return; }
+    onBack();
+  };
+
+  const handleDiscardAndBack = () => {
+    setDraft({ ...notifSettings }); // reset draft
+    setShowUnsavedWarning(false);
+    onBack();
+  };
+
+  const handleSaveAndBack = async () => {
+    setShowUnsavedWarning(false);
+    await handleSave();
+    onBack();
   };
 
   const requestPermission = async () => {
     if (typeof Notification === "undefined") {
-      showGlobalToast("Notifications not supported on this browser", "dark");
-      return;
+      showGlobalToast("Notifications not supported on this browser", "dark"); return;
     }
     const result = await Notification.requestPermission();
     setNotifPermission(result);
     if (result === "granted") {
-      await update({ browser_permission_granted: true });
-      showGlobalToast("🔔 Reminders enabled!", "green");
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        reg.showNotification("🎉 TASKYA reminders are on", {
-          body: "You'll get notified before tasks are due.",
-          icon: "/taskya-icon-192.png", tag: "notif-test",
-        });
-      } catch {}
+      patch({ browser_permission_granted: true });
+      showGlobalToast("🔔 Permission granted — save to apply", "green");
     } else {
       showGlobalToast("Permission denied — check browser settings", "dark");
     }
@@ -2712,14 +2806,14 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
         icon: "/taskya-icon-192.png", tag: "notif-manual-test",
       });
       showGlobalToast("Test notification sent!", "green");
-    } catch { showGlobalToast("Couldn't send test notification", "dark"); }
+    } catch { showGlobalToast("Couldn't send — check browser settings", "dark"); }
   };
 
   const permBadge = (p) => {
     const map = {
-      granted: { label: "Granted", bg: "var(--green-lt)", color: "var(--green)" },
-      denied:  { label: "Denied",  bg: "var(--red-lt)",   color: "var(--red)"   },
-      default: { label: "Not asked", bg: "var(--bg)",      color: "var(--text2)" },
+      granted: { label: "Granted",  bg: "var(--green-lt)", color: "var(--green)"  },
+      denied:  { label: "Denied",   bg: "var(--red-lt)",   color: "var(--red)"    },
+      default: { label: "Not asked",bg: "var(--bg)",       color: "var(--text2)"  },
     };
     const c = map[p] || map.default;
     return (
@@ -2729,15 +2823,14 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
     );
   };
 
-  const fld = {
-    padding: "9px 12px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
-    fontSize: 13, fontFamily: "inherit", background: "var(--bg)", color: "var(--text)", outline: "none",
-  };
-
-  const Row = ({ label, sub, children }) => (
+  // Row wrapper — dims and disables when master toggle is off (except the master row itself)
+  const Row = ({ label, sub, children, alwaysEnabled }) => (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
       gap: 12, padding: "14px 0", borderBottom: "1px solid var(--border)",
+      opacity: (!alwaysEnabled && off) ? 0.4 : 1,
+      pointerEvents: (!alwaysEnabled && off) ? "none" : "auto",
+      transition: "opacity 0.2s ease",
     }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
@@ -2749,21 +2842,27 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
 
   return (
     <div style={{ padding: "20px var(--page-px, 18px)", minHeight: "calc(100vh - 90px)", background: "var(--bg)" }}>
-      {/* header */}
+
+      {/* ── header ── */}
       <div className="fu" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-        <button onClick={onBack} style={{
+        <button onClick={handleBack} style={{
           width: 36, height: 36, borderRadius: "50%", border: "1px solid var(--border)",
-          background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          color: "var(--text2)", flexShrink: 0,
+          background: "var(--bg-card)", cursor: "pointer", display: "flex", alignItems: "center",
+          justifyContent: "center", color: "var(--text2)", flexShrink: 0,
         }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
+        <h2 style={{ flex: 1, fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
           Settings<span style={{ color: "var(--accent)" }}>.</span>
         </h2>
+        {isDirty && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", background: "var(--accent-lt)", padding: "3px 8px", borderRadius: 100 }}>
+            Unsaved
+          </span>
+        )}
       </div>
 
-      {/* Notifications section */}
+      {/* ── Notifications card ── */}
       <div className="fu" style={{
         background: "var(--bg-card)", borderRadius: "var(--r)", padding: "4px 18px",
         border: "1px solid var(--border)", boxShadow: "var(--sh)", marginBottom: 16, animationDelay: "0.05s",
@@ -2772,11 +2871,13 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
           Notifications
         </div>
 
-        <Row label="Enable notifications" sub="Master toggle for all reminders">
-          <Toggle on={notifSettings.enabled} onChange={v => update({ enabled: v })} />
+        {/* Master toggle — always enabled */}
+        <Row label="Enable notifications" sub="Master toggle for all reminders" alwaysEnabled>
+          <Toggle on={draft.enabled} onChange={v => patch({ enabled: v })} />
         </Row>
 
-        <Row label="Browser permission" sub="Required for native notifications">
+        {/* Browser permission — always visible */}
+        <Row label="Browser permission" sub="Required for native notifications" alwaysEnabled>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             {permBadge(notifPermission)}
             {notifPermission !== "granted" && (
@@ -2789,28 +2890,41 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
           </div>
         </Row>
 
-        <Row label="Morning summary" sub="Daily task overview at your chosen time">
-          <Toggle on={notifSettings.morning_summary} onChange={v => update({ morning_summary: v })} />
+        {/* Morning summary */}
+        <Row label="Morning summary" sub="Daily task overview in the morning">
+          <Toggle on={draft.morning_summary} onChange={v => patch({ morning_summary: v })} />
         </Row>
 
-        {notifSettings.morning_summary && (
+        {draft.morning_summary && (
           <Row label="Morning time" sub="">
-            <input type="time" value={notifSettings.morning_time} onChange={e => update({ morning_time: e.target.value })} style={fld} />
+            <TimePicker value={draft.morning_time} disabled={off} onChange={v => patch({ morning_time: v })} />
           </Row>
         )}
 
+        {/* Evening reminder */}
         <Row label="Evening reminder" sub="Check-in for pending tasks">
-          <Toggle on={notifSettings.evening_reminder} onChange={v => update({ evening_reminder: v })} />
+          <Toggle on={draft.evening_reminder} onChange={v => patch({ evening_reminder: v })} />
         </Row>
 
-        {notifSettings.evening_reminder && (
+        {draft.evening_reminder && (
           <Row label="Evening time" sub="">
-            <input type="time" value={notifSettings.evening_time} onChange={e => update({ evening_time: e.target.value })} style={fld} />
+            <TimePicker value={draft.evening_time} disabled={off} onChange={v => patch({ evening_time: v })} />
           </Row>
         )}
 
+        {/* Default pre-due reminder */}
         <Row label="Default reminder" sub="How long before due time to alert you">
-          <select value={notifSettings.default_pre_due} onChange={e => update({ default_pre_due: e.target.value })} style={{ ...fld, cursor: "pointer" }}>
+          <select
+            value={draft.default_pre_due}
+            disabled={off}
+            onChange={e => patch({ default_pre_due: e.target.value })}
+            style={{
+              padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+              fontSize: 13, fontFamily: "inherit", background: off ? "var(--bg)" : "var(--bg-card)",
+              color: off ? "var(--text2)" : "var(--text)", cursor: off ? "not-allowed" : "pointer",
+              outline: "none",
+            }}
+          >
             <option value="off">Off</option>
             <option value="15m">15 minutes</option>
             <option value="1h">1 hour</option>
@@ -2819,14 +2933,15 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
           </select>
         </Row>
 
-        <div style={{ padding: "16px 0 14px" }}>
-          <button onClick={sendTestNotif} style={{
+        {/* Test notification */}
+        <div style={{ padding: "16px 0 14px", opacity: off ? 0.4 : 1, transition: "opacity 0.2s" }}>
+          <button onClick={off ? undefined : sendTestNotif} style={{
             width: "100%", padding: "11px", border: "1.5px solid var(--border)",
             borderRadius: "var(--rs)", background: "var(--bg)", color: "var(--text2)",
-            fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-            transition: "all 0.15s ease",
+            fontSize: 13, fontWeight: 600, cursor: off ? "not-allowed" : "pointer",
+            fontFamily: "inherit", transition: "all 0.15s ease",
           }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+          onMouseEnter={e => { if (!off) { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}}
           onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; }}
           >
             Send test notification
@@ -2837,15 +2952,69 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
       {/* info note */}
       <div className="fu" style={{
         background: "var(--blue-lt)", borderRadius: "var(--rs)", padding: "12px 16px",
-        border: "1px solid rgba(37,99,235,0.15)", animationDelay: "0.1s",
+        border: "1px solid rgba(37,99,235,0.15)", marginBottom: 20, animationDelay: "0.1s",
       }}>
         <div style={{ fontSize: 11, color: "var(--blue)", lineHeight: 1.6 }}>
-          ℹ️ Notifications work when TASKYA is open or running in the background. Per-task reminder overrides are available by tapping any pending task.
+          ℹ️ Notifications fire on every device where TASKYA is open. Tasks sync across devices every 30 seconds automatically. Per-task reminder overrides are available by tapping any pending task.
         </div>
       </div>
 
-      {saving && (
-        <div style={{ textAlign: "center", marginTop: 16, fontSize: 11, color: "var(--text2)" }}>Saving…</div>
+      {/* ── Save button ── */}
+      <button
+        onClick={handleSave}
+        disabled={saving || !isDirty}
+        style={{
+          width: "100%", padding: "14px", border: "none",
+          borderRadius: "var(--rs)", fontSize: 14, fontWeight: 700,
+          cursor: (!isDirty || saving) ? "not-allowed" : "pointer",
+          fontFamily: "inherit", transition: "all 0.15s ease",
+          background: isDirty ? "var(--bg-dark)" : "var(--border)",
+          color: isDirty ? "var(--text-inv)" : "var(--text2)",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}
+      >
+        {saving ? (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}><path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/></svg>
+            Saving…
+          </>
+        ) : isDirty ? "Save changes" : "No changes to save"}
+      </button>
+
+      {/* ── Unsaved changes warning popup ── */}
+      {showUnsavedWarning && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(28,25,23,0.5)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 400, padding: 24,
+        }} onClick={() => setShowUnsavedWarning(false)}>
+          <div className="si" style={{
+            background: "var(--bg-card)", borderRadius: "var(--r)", padding: 24,
+            maxWidth: 320, width: "100%", boxShadow: "0 12px 40px rgba(28,25,23,0.2)",
+          }} onClick={e => e.stopPropagation()}>
+            <h4 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Unsaved changes</h4>
+            <p style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.5, marginBottom: 20 }}>
+              You have unsaved changes in Settings. Do you want to save before leaving?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <button onClick={handleSaveAndBack} style={{
+                padding: "11px", background: "var(--bg-dark)", color: "white",
+                border: "none", borderRadius: "var(--rs)", fontSize: 13, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>Save & go back</button>
+              <button onClick={handleDiscardAndBack} style={{
+                padding: "11px", background: "var(--red-lt)", color: "var(--red)",
+                border: "none", borderRadius: "var(--rs)", fontSize: 13, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>Discard changes</button>
+              <button onClick={() => setShowUnsavedWarning(false)} style={{
+                padding: "11px", background: "transparent", color: "var(--text2)",
+                border: "1.5px solid var(--border)", borderRadius: "var(--rs)", fontSize: 13, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>Keep editing</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

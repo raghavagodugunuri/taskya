@@ -386,7 +386,7 @@ export default function TaskManager() {
 
   // Load all data from Supabase on mount / login
   // Core data fetcher — shared by initial load and silent refresh.
-  // ATOMIC: builds full result first, only commits to state if everything succeeded.
+  // Returns the fetched data instead of committing — caller decides whether to commit.
   const fetchAllData = async (uname) => {
     // 0. Load user row for notification settings
     const userRows = await dbGet("taskya_users", { username: uname });
@@ -513,29 +513,82 @@ export default function TaskManager() {
       from: inv.from_user, to: inv.to_user, status: inv.status,
     }));
 
-    // ── ALL FETCHES SUCCEEDED — now commit to state atomically ──
-    if (nextNotifSettings) {
-      setNotifSettings(prev => {
-        return JSON.stringify(prev) !== JSON.stringify(nextNotifSettings) ? nextNotifSettings : prev;
-      });
-    }
-    setGroups(loadedGroups);
-    setAllTasks(loadedTasks);
-    setInvitations(loadedInvs);
+    // ── ALL FETCHES SUCCEEDED — return the result, let caller decide ──
+    return {
+      notifSettings: nextNotifSettings,
+      groups: loadedGroups,
+      tasks: loadedTasks,
+      invitations: loadedInvs,
+      // Track whether this fetch was "complete enough" — used by silentReload regression check
+      memberGroupCount: memberGroupIds.length,
+    };
   };
 
-  // Full load (shows spinner)
+  // Helper: commit fetched data to state
+  const commitData = (data) => {
+    if (data.notifSettings) {
+      setNotifSettings(prev => {
+        return JSON.stringify(prev) !== JSON.stringify(data.notifSettings) ? data.notifSettings : prev;
+      });
+    }
+    setGroups(data.groups);
+    setAllTasks(data.tasks);
+    setInvitations(data.invitations);
+  };
+
+  // Full load with retry — runs on mount/login. Shows spinner.
+  // Retries up to 2 times on empty/error result before giving up, to handle transient failures on refresh.
   const loadData = async (uname) => {
     setLoading(true);
-    try { await fetchAllData(uname); } catch (e) { console.error("Load error:", e); }
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const data = await fetchAllData(uname);
+        commitData(data);
+        setLoading(false);
+        return;
+      } catch (e) {
+        lastError = e;
+        console.warn(`Load attempt ${attempt} failed:`, e.message);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 800 * attempt)); // backoff
+      }
+    }
+    console.error("Load failed after 3 attempts:", lastError);
     setLoading(false);
   };
 
-  // Silent reload (no spinner — used for polling & after mutations)
-  // CRITICAL: catches errors and does nothing on failure — never wipes state.
+  // Silent reload — runs every 30s. NEVER wipes existing data on suspicious results.
+  // Regression guard: if current state has data but fetch returned empty, skip commit.
   const silentReload = async (uname) => {
-    try { await fetchAllData(uname); }
-    catch (e) { console.warn("Silent reload skipped (will retry next tick):", e.message); }
+    try {
+      const data = await fetchAllData(uname);
+
+      // Regression guard: if user currently has groups/tasks loaded but fetch returned empty,
+      // it's almost certainly a transient failure. Skip this commit and try again next tick.
+      const hasCurrentData = groups.length > 0 || allTasks.length > 0;
+      const fetchIsEmpty = data.groups.length === 0 && data.tasks.length === 0;
+      if (hasCurrentData && fetchIsEmpty) {
+        console.warn("Silent reload returned empty while state has data — skipping (likely transient).");
+        return;
+      }
+
+      // Additional guard: if fetch returns FEWER groups than we have AND we own some,
+      // that's suspicious too (could be RLS hiccup). Only commit if equal or more.
+      if (groups.length > 0 && data.groups.length < groups.length) {
+        // Check if user-owned groups are still present in fetched data
+        const myOwnedIds = new Set(groups.filter(g => g.created_by === uname || g.createdBy === uname).map(g => g.id));
+        const fetchedIds = new Set(data.groups.map(g => g.id));
+        const missingOwned = [...myOwnedIds].filter(id => !fetchedIds.has(id));
+        if (missingOwned.length > 0) {
+          console.warn(`Silent reload missing ${missingOwned.length} owned group(s) — skipping commit.`);
+          return;
+        }
+      }
+
+      commitData(data);
+    } catch (e) {
+      console.warn("Silent reload skipped (will retry next tick):", e.message);
+    }
   };
 
   useEffect(() => {
@@ -543,10 +596,14 @@ export default function TaskManager() {
     else { setLoading(false); }
   }, [loggedIn, userName]);
 
-  // ── 30-second polling for cross-device sync (fix #6 & #7) ──
+  // Keep latest silentReload in a ref so polling sees up-to-date state
+  const silentReloadRef = useRef(silentReload);
+  useEffect(() => { silentReloadRef.current = silentReload; });
+
+  // ── 30-second polling for cross-device sync ──
   useEffect(() => {
     if (!loggedIn || !userName) return;
-    const iv = setInterval(() => silentReload(userName), 30000);
+    const iv = setInterval(() => silentReloadRef.current(userName), 30000);
     return () => clearInterval(iv);
   }, [loggedIn, userName]);
 

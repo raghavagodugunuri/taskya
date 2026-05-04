@@ -1,4 +1,5 @@
 import { useState, useEffect, useReducer, useRef } from "react";
+import ReactDOM from "react-dom";
 
 /* ───────────────────────── main ───────────────────────── */
 
@@ -177,7 +178,9 @@ function LoginPage({ onLogin }) {
       }
     } catch (e) {
       console.error("Auth error:", e);
-      setError("Connection error. Please try again.");
+      const msg = e?.message || String(e);
+      // Show the actual error message so we can see what Supabase returned
+      setError(msg.length > 200 ? msg.substring(0, 200) : msg);
       setLoading(false);
     }
   };
@@ -305,21 +308,34 @@ function LoginPage({ onLogin }) {
           padding: "14px", background: loading ? "var(--text2)" : "var(--bg-dark)", color: "var(--text-inv)",
           border: "none", borderRadius: 12, fontSize: 15, fontWeight: 600,
           cursor: loading ? "not-allowed" : "pointer", fontFamily: "'DM Sans', sans-serif", width: "100%",
-          marginTop: 4, transition: "opacity 0.15s ease",
-          boxShadow: "0 4px 16px rgba(28,25,23,0.12)",
+          marginTop: 4, transition: "box-shadow 0.15s ease, transform 0.15s ease",
+          boxShadow: loading ? "none" : "0 4px 16px rgba(28,25,23,0.35)",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}
-        onMouseEnter={e => { if (!loading) e.target.style.opacity = "0.88"; }}
-        onMouseLeave={e => e.target.style.opacity = "1"}
+        onMouseEnter={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 6px 22px rgba(28,25,23,0.5)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+        onMouseLeave={e => { if (!loading) { e.currentTarget.style.boxShadow = "0 4px 16px rgba(28,25,23,0.35)"; e.currentTarget.style.transform = "translateY(0)"; } }}
         >
-          {loading && (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ animation: "spin 0.8s linear infinite" }}>
-              <path d="M21 12a9 9 0 11-6.219-8.56" strokeLinecap="round"/>
-            </svg>
-          )}
-          {loading ? "Please wait..." : (isSignUp ? "Create Account" : "Sign In")}
+          {loading ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <span>{isSignUp ? "Creating account" : "Signing in"}</span>
+              <span className="loading-dots" style={{ display: "inline-flex", gap: 2 }}>
+                <span className="ld-dot">.</span>
+                <span className="ld-dot">.</span>
+                <span className="ld-dot">.</span>
+              </span>
+            </span>
+          ) : (isSignUp ? "Create Account" : "Sign In")}
         </button>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <style>{`
+          @keyframes spin{to{transform:rotate(360deg)}}
+          @keyframes ldBounce {
+            0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
+            40% { opacity: 1; transform: translateY(-3px); }
+          }
+          .ld-dot { animation: ldBounce 1.4s ease-in-out infinite both; font-weight: 900; font-size: 18px; line-height: 1; }
+          .ld-dot:nth-child(2) { animation-delay: 0.18s; }
+          .ld-dot:nth-child(3) { animation-delay: 0.36s; }
+        `}</style>
 
         <p style={{ fontSize: 12, color: "var(--text2)", textAlign: "center", marginTop: 4 }}>
           {isSignUp ? (
@@ -471,23 +487,24 @@ export default function TaskManager() {
             is_default: true,
           });
         } else {
-          // Truly new user — create the default group
-          const gId = `mygroup_${uname}_${Date.now()}`;
+          // Truly new user — create the default group with deterministic ID.
+          // Using `mygroup_${uname}` (no timestamp) means duplicate inserts fail silently
+          // — Supabase returns a primary-key conflict, which we swallow.
+          const gId = `mygroup_${uname}`;
           try {
             await dbInsert("taskya_groups", {
               id: gId, name: "My Group", color: "#D97706",
               created_by: uname, is_default: true,
             });
+          } catch (e) { /* already exists — fine */ }
+          try {
             await dbInsert("taskya_group_members", { group_id: gId, username: uname });
-            loadedGroups.push({
-              id: gId, name: "My Group", color: "#D97706",
-              createdBy: uname, isDefault: true, is_default: true,
-              created_by: uname, members: [uname],
-            });
-          } catch (e) {
-            console.error("Default group creation failed:", e);
-            throw new Error("Default group setup failed: " + e.message);
-          }
+          } catch (e) { /* already a member — fine */ }
+          loadedGroups.push({
+            id: gId, name: "My Group", color: "#D97706",
+            createdBy: uname, isDefault: true, is_default: true,
+            created_by: uname, members: [uname],
+          });
         }
       }
     }
@@ -506,9 +523,17 @@ export default function TaskManager() {
       }));
     }
 
-    // 4. Load invitations
-    const invRows = await dbGet("taskya_invitations", { to_user: uname });
-    const loadedInvs = (invRows || []).map(inv => ({
+    // 4. Load invitations — both RECEIVED (to_user=me) and SENT (from_user=me).
+    // Sent invites are needed to render "pending" pills on the inviter's own group cards.
+    const received = await dbGet("taskya_invitations", { to_user: uname });
+    const sent = await dbGet("taskya_invitations", { from_user: uname });
+    const allInvs = [...(Array.isArray(received) ? received : []), ...(Array.isArray(sent) ? sent : [])];
+    const seenIds = new Set();
+    const merged = [];
+    for (const inv of allInvs) {
+      if (!seenIds.has(inv.id)) { seenIds.add(inv.id); merged.push(inv); }
+    }
+    const loadedInvs = merged.map(inv => ({
       id: inv.id, groupId: inv.group_id, groupName: inv.group_name,
       from: inv.from_user, to: inv.to_user, status: inv.status,
     }));
@@ -723,9 +748,36 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     } catch (e) { console.error("Failed to save notif settings", e); }
   };
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    // Force light mode on the document (in case browser/OS is in dark mode)
+    let meta = document.querySelector('meta[name="color-scheme"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "color-scheme";
+      document.head.appendChild(meta);
+    }
+    meta.content = "light";
+    document.documentElement.style.colorScheme = "light";
+    document.body.style.background = "#FAF8F5";
+    document.body.style.color = "#1C1917";
+  }, []);
 
-  // Handle pending action from notification click (URL params stored in localStorage)
+  // #5 — Smooth-scroll focused inputs into view when keyboard appears (mobile)
+  useEffect(() => {
+    const onFocus = (e) => {
+      const el = e.target;
+      if (!el || !el.tagName) return;
+      const tag = el.tagName.toLowerCase();
+      if (tag !== "input" && tag !== "textarea" && tag !== "select") return;
+      // Delay to let keyboard start opening, then scroll element into center
+      setTimeout(() => {
+        try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch {}
+      }, 280);
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
   useEffect(() => {
     const pending = readLS("taskya_pending_action", null);
     if (!pending) return;
@@ -981,13 +1033,14 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         setAllTasks(prev => {
           for (const t of prev) {
             if (t.status !== "pending" || !t.dueDate) continue;
-            const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59")).getTime();
+            // When no time given, treat due as end of that day
+            const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59:59")).getTime();
             if (due < nowTs) tasksToMiss.push(t);
           }
           return prev;
         });
         for (const t of tasksToMiss) {
-          const activity = [...(t.activity || []), { type: "missed", by: "system", at: nowTs }];
+          const activity = [...(t.activity || []), { type: "missed", by: "Taskya", at: nowTs }];
           try {
             await dbUpdate("taskya_tasks", { status: "missed", activity }, { id: t.id });
             setAllTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: "missed", activity } : x));
@@ -1119,6 +1172,9 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         @media(min-width:480px){.fab-group{right: max(calc((100vw - 520px) / 2 + 18px), 18px);}}
         @media(min-width:768px){.fab-group{right: max(calc((100vw - 600px) / 2 + 18px), 18px);}}
         @media(min-width:1024px){.fab-group{right: max(calc((100vw - 640px) / 2 + 18px), 18px);}}
+        /* Hide scrollbar on group selector name but keep scrolling functional */
+        .gsel-name::-webkit-scrollbar { display: none; height: 0; width: 0; }
+        .gsel-name { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       <div style={{ paddingBottom: 90, minHeight: "100vh", background: "var(--bg)" }}>
@@ -1414,7 +1470,15 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage, onOpenSettings 
         {groups.length === 0 ? (
           <EmptyMsg msg="No groups yet" />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{
+            display: "flex", flexDirection: "column", gap: 8,
+            // After 3 groups, enable vertical scrolling (each card ~62px + 8px gap)
+            maxHeight: groups.length > 3 ? 210 : "none",
+            overflowY: groups.length > 3 ? "auto" : "visible",
+            paddingRight: groups.length > 3 ? 4 : 0,
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "thin",
+          }}>
             {groups.map(g => {
               const gt = tasks.filter(t => t.group === g.name);
               const gd = gt.filter(t => t.status === "completed").length;
@@ -1746,6 +1810,7 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showReschedule, setShowReschedule] = useState(false);
+  const [showRescheduleConfirm, setShowRescheduleConfirm] = useState(false);
   const [newDueDate, setNewDueDate] = useState(task.dueDate || "");
   const [newDueTime, setNewDueTime] = useState(task.dueTime || "");
 
@@ -1766,10 +1831,50 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
 
   const titleColor = isDone ? "var(--text2)" : isMissed ? "var(--red)" : "var(--text)";
 
+  // Min/max for the reschedule date picker based on task's time bucket
+  const rescheduleBounds = () => {
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmtD = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const now = new Date();
+    const min = fmtD(now);
+    let max = "";
+    switch (task.time) {
+      case "daily":
+        max = fmtD(now);
+        break;
+      case "weekly": {
+        const d = new Date(now);
+        d.setDate(now.getDate() + (7 - now.getDay()));
+        max = fmtD(d);
+        break;
+      }
+      case "monthly": {
+        const d = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        max = fmtD(d);
+        break;
+      }
+      case "quarterly": {
+        const q = Math.ceil((now.getMonth() + 1) / 3);
+        const d = new Date(now.getFullYear(), q * 3, 0);
+        max = fmtD(d);
+        break;
+      }
+      default:
+        max = ""; // custom / anytime: no upper bound
+    }
+    return { min, max };
+  };
+
   const handleReschedule = () => {
     if (!newDueDate) return;
-    dispatch({ type: "UPDATE_DUE", id: task.id, dueDate: newDueDate, dueTime: newDueTime || null });
+    // Close the form and open confirmation
     setShowReschedule(false);
+    setShowRescheduleConfirm(true);
+  };
+
+  const confirmReschedule = () => {
+    dispatch({ type: "UPDATE_DUE", id: task.id, dueDate: newDueDate, dueTime: newDueTime || null });
+    setShowRescheduleConfirm(false);
     showToast("Task rescheduled", "green");
   };
 
@@ -1925,14 +2030,26 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
         />
       )}
 
+      {/* reschedule confirmation popup */}
+      {showRescheduleConfirm && (
+        <ConfirmPopup
+          title="Reschedule task"
+          message={`Reschedule "${task.title.length > 40 ? task.title.substring(0, 40) + "…" : task.title}" to ${newDueDate}${newDueTime ? ` at ${newDueTime}` : ""}?`}
+          confirmLabel="Reschedule"
+          confirmColor="#1C1917"
+          onConfirm={confirmReschedule}
+          onCancel={() => setShowRescheduleConfirm(false)}
+        />
+      )}
+
       {/* reschedule popup */}
       {showReschedule && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(28,25,23,0.12)",
-          
+          background: "rgba(28,25,23,0.55)",
           display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 200, padding: 24,
+          zIndex: 99999, padding: 20,
+          backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
         }} onClick={() => setShowReschedule(false)}>
           <div className="si" style={{
             background: "var(--bg-card)", borderRadius: "var(--r)", padding: 24,
@@ -1945,11 +2062,39 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
                 <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
                   New Due Date
                 </label>
-                <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} style={{
-                  width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
-                  borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
-                  background: "var(--bg)", color: "var(--text)", outline: "none",
-                }} />
+                {(() => {
+                  const b = rescheduleBounds();
+                  return (
+                    <>
+                      <input
+                        type="date"
+                        value={newDueDate}
+                        min={b.min}
+                        max={b.max || undefined}
+                        onChange={e => {
+                          const val = e.target.value;
+                          let clamped = val;
+                          if (val && val < b.min) clamped = b.min;
+                          if (val && b.max && val > b.max) clamped = b.max;
+                          setNewDueDate(clamped);
+                        }}
+                        style={{
+                          width: "100%", padding: "10px 12px", border: "1.5px solid var(--border)",
+                          borderRadius: "var(--rs)", fontSize: 13, fontFamily: "inherit",
+                          background: "var(--bg)", color: "var(--text)", outline: "none",
+                        }}
+                      />
+                      {task.time !== "custom" && task.time && b.max && (
+                        <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4 }}>
+                          {task.time === "daily" && "Must be today"}
+                          {task.time === "weekly" && `Within this week (by ${b.max})`}
+                          {task.time === "monthly" && `Within this month (by ${b.max})`}
+                          {task.time === "quarterly" && `Within this quarter (by ${b.max})`}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <label style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" }}>
@@ -2021,7 +2166,7 @@ function ActivityTimeline({ activity }) {
               border: `2px solid var(--bg)`,
             }}>{cfg.icon}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", lineHeight: 1.4 }}>
-              {cfg.label} <span style={{ color: cfg.color }}>{a.by === "system" ? "system" : a.by}</span>
+              {cfg.label} <span style={{ color: cfg.color }}>{(a.by === "system" || a.by === "Taskya") ? "by Taskya" : a.by}</span>
             </div>
             <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 4 }}>{fmtDateTime(a.at)}</div>
             {a.type === "rescheduled" && a.dueDate && (
@@ -2037,39 +2182,58 @@ function ActivityTimeline({ activity }) {
 }
 
 function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, onCancel, size }) {
-  const maxW = size === "sm" ? 280 : "90%";
-  return (
+  const maxW = size === "sm" ? 320 : 440;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const overlay = (
     <div style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: "rgba(28,25,23,0.12)",
-      
+      background: "rgba(28,25,23,0.55)",
       display: "flex", alignItems: "center", justifyContent: "center",
-      zIndex: 200, padding: 24,
+      zIndex: 99999, padding: 20,
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
     }} onClick={onCancel}>
       <div className="si" style={{
-        background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 24,
-        maxWidth: maxW, width: "100%", boxShadow: "0 12px 40px rgba(28,25,23,0.15)",
+        background: "var(--bg-card)", borderRadius: "var(--r)", padding: size === "sm" ? 18 : 22,
+        maxWidth: maxW, width: "calc(100% - 40px)", boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+        boxSizing: "border-box", overflow: "hidden", position: "relative",
       }} onClick={e => e.stopPropagation()}>
-        <h4 style={{ fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6 }}>{title}</h4>
-        <p style={{ fontSize: size === "sm" ? 12 : 13, color: "var(--text2)", lineHeight: 1.5, marginBottom: size === "sm" ? 14 : 20 }}>{message}</p>
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <h4 style={{
+          fontSize: size === "sm" ? 14 : 16, fontWeight: 600, marginBottom: 6,
+          wordBreak: "break-word", overflowWrap: "break-word",
+        }}>{title}</h4>
+        <p style={{
+          fontSize: size === "sm" ? 12 : 13, color: "var(--text2)", lineHeight: 1.5,
+          marginBottom: size === "sm" ? 14 : 20,
+          wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal",
+        }}>{message}</p>
+        <div style={{ display: "flex", gap: 10, justifyContent: "stretch", flexWrap: "wrap" }}>
           <button onClick={onCancel} style={{
-            padding: size === "sm" ? "6px 14px" : "8px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
-            background: "var(--bg)", color: "var(--text2)", fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
+            flex: 1, minWidth: 100,
+            padding: size === "sm" ? "9px 14px" : "10px 18px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+            background: "var(--bg)", color: "var(--text2)", fontSize: size === "sm" ? 12 : 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit", transition: "background 0.15s ease",
           }}>Cancel</button>
           <button onClick={onConfirm} style={{
-            padding: size === "sm" ? "6px 14px" : "8px 18px", border: "none", borderRadius: "var(--rs)",
-            background: confirmColor, color: "white", fontSize: size === "sm" ? 11 : 12, fontWeight: 600,
-            cursor: "pointer", fontFamily: "inherit", transition: "opacity 0.15s ease",
+            flex: 1, minWidth: 100,
+            padding: size === "sm" ? "9px 14px" : "10px 18px", border: "none", borderRadius: "var(--rs)",
+            background: confirmColor, color: "white", fontSize: size === "sm" ? 12 : 13, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+            transition: "box-shadow 0.15s ease, transform 0.15s ease",
+            boxShadow: "0 2px 8px rgba(28,25,23,0.3)",
           }}
-          onMouseEnter={e => e.target.style.opacity = "0.88"}
-          onMouseLeave={e => e.target.style.opacity = "1"}
+          onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; }}
           >{confirmLabel}</button>
         </div>
       </div>
     </div>
   );
+
+  // Render via portal to document.body — escapes all parent stacking contexts
+  if (!mounted || typeof document === "undefined") return null;
+  return ReactDOM.createPortal(overlay, document.body);
 }
 
 function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, showToast, userName }) {
@@ -2099,6 +2263,34 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         return "";
     }
   };
+
+  // Maximum selectable due date per time bucket.
+  const getMaxDue = (time) => {
+    const now = new Date();
+    switch (time) {
+      case "daily":
+        return fmtDate(now);
+      case "weekly": {
+        const sun = new Date(now);
+        sun.setDate(now.getDate() + (7 - now.getDay()));
+        return fmtDate(sun);
+      }
+      case "monthly": {
+        const eom = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return fmtDate(eom);
+      }
+      case "quarterly": {
+        const q = Math.ceil((now.getMonth() + 1) / 3);
+        const eoq = new Date(now.getFullYear(), q * 3, 0);
+        return fmtDate(eoq);
+      }
+      default:
+        return ""; // no max for custom
+    }
+  };
+
+  // Minimum = today (can't create tasks in the past)
+  const getMinDue = () => fmtDate(new Date());
 
   const isNoDue = !defaultTime;
   const initTime = defaultTime || "daily";
@@ -2159,19 +2351,37 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     }
     if (!form.priority) e.priority = "Select priority";
     if (!form.group) e.group = "Select a group";
+    // Due date range check per bucket
+    if (form.dueDate) {
+      const minD = getMinDue();
+      const maxD = getMaxDue(form.time);
+      if (form.dueDate < minD) {
+        e.dueDate = "Due date cannot be in the past";
+      } else if (maxD && form.dueDate > maxD) {
+        const bucketLabel = { daily: "today", weekly: "this week", monthly: "this month", quarterly: "this quarter" }[form.time];
+        e.dueDate = `${form.time.charAt(0).toUpperCase() + form.time.slice(1)} tasks must be due within ${bucketLabel}`;
+      }
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
+
   const submit = () => {
     if (!validate()) return;
+    setShowCreateConfirm(true);
+  };
+
+  const confirmCreate = () => {
     const selectedGroup = groups.find(g => g.name === form.group);
     dispatch({ type: "ADD_TASK", payload: { ...form, groupId: selectedGroup?.id, title: form.title.trim(), status: "pending", dueDate: form.dueDate || null, dueTime: form.dueTime || null } });
-    showToast("Task added successfully", "green");
+    showToast("Task created successfully", "green");
     const resetTime = defaultTime || "daily";
     setForm({ title: "", desc: "", group: pickInitialGroup(groups), time: resetTime, priority: "medium", dueDate: isNoDue ? "" : getDefaultDue(resetTime), dueTime: isNoDue ? "" : "23:59" });
     setErrors({});
     setDueDateManual(false);
+    setShowCreateConfirm(false);
   };
 
   const fld = {
@@ -2229,11 +2439,19 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
                 const sel = groups.find(g => g.name === form.group);
                 const isOwner = sel?.createdBy === userName;
                 return (
-                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                    <span style={{
-                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      minWidth: 0, flexShrink: 1,
-                    }}>{form.group}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1, overflow: "hidden" }}>
+                    {/* horizontally scrollable name — shows full name if user drags */}
+                    <span
+                      className="gsel-name"
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        overflowX: "auto", overflowY: "hidden", whiteSpace: "nowrap",
+                        minWidth: 0, flex: 1, maxWidth: "100%",
+                        WebkitOverflowScrolling: "touch",
+                        scrollbarWidth: "none", msOverflowStyle: "none",
+                        display: "inline-block",
+                      }}
+                    >{form.group}</span>
                     <span style={{
                       fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4,
                       background: isOwner ? "var(--accent-lt)" : "var(--blue-lt)",
@@ -2394,11 +2612,69 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <label style={lbl}>Due Date</label>
-              <input type="date" value={form.dueDate} onChange={e => { setForm({...form, dueDate: e.target.value}); setDueDateManual(true); }} style={fld} />
+              <div style={{ position: "relative" }}>
+                <input
+                  type="date"
+                  value={form.dueDate}
+                  min={getMinDue()}
+                  max={getMaxDue(form.time) || undefined}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const minD = getMinDue();
+                    const maxD = getMaxDue(form.time);
+                    let clamped = val;
+                    if (val && val < minD) clamped = minD;
+                    if (val && maxD && val > maxD) clamped = maxD;
+                    setForm({ ...form, dueDate: clamped });
+                    setDueDateManual(true);
+                    if (errors.dueDate) setErrors(pr => ({ ...pr, dueDate: undefined }));
+                    if (clamped !== val && val) {
+                      showToast(`Due date adjusted to fit the ${form.time === "custom" ? "allowed" : form.time} range`, "red");
+                    }
+                  }}
+                  style={{
+                    ...(errors.dueDate ? { ...fld, borderColor: "var(--red)" } : fld),
+                    color: form.dueDate ? "var(--text)" : "transparent",
+                  }}
+                />
+                {!form.dueDate && (
+                  <span style={{
+                    position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
+                    fontSize: 14, color: "var(--text2)", pointerEvents: "none",
+                    fontFamily: "inherit",
+                  }}>Select date</span>
+                )}
+              </div>
+              {errors.dueDate && <div style={{ fontSize: 10, color: "var(--red)", marginTop: 4 }}>{errors.dueDate}</div>}
+              {!errors.dueDate && form.time && form.time !== "custom" && (
+                <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 4 }}>
+                  {form.time === "daily" && "Must be today"}
+                  {form.time === "weekly" && `Within this week (by ${getMaxDue("weekly")})`}
+                  {form.time === "monthly" && `Within this month (by ${getMaxDue("monthly")})`}
+                  {form.time === "quarterly" && `Within this quarter (by ${getMaxDue("quarterly")})`}
+                </div>
+              )}
             </div>
             <div>
               <label style={lbl}>Due Time</label>
-              <input type="time" value={form.dueTime || ""} onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }} style={fld} />
+              <div style={{ position: "relative" }}>
+                <input
+                  type="time"
+                  value={form.dueTime || ""}
+                  onChange={e => { setForm({...form, dueTime: e.target.value}); setDueDateManual(true); }}
+                  style={{
+                    ...fld,
+                    color: form.dueTime ? "var(--text)" : "transparent",
+                  }}
+                />
+                {!form.dueTime && (
+                  <span style={{
+                    position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
+                    fontSize: 14, color: "var(--text2)", pointerEvents: "none",
+                    fontFamily: "inherit",
+                  }}>Select time</span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -2414,6 +2690,18 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
         </button>
       </div>
     </div>
+
+    {/* create task confirmation */}
+    {showCreateConfirm && (
+      <ConfirmPopup
+        title="Create task"
+        message={`Create "${form.title.trim()}" in ${form.group}${form.dueDate ? ` due ${form.dueDate}${form.dueTime ? ` at ${form.dueTime}` : ""}` : ""}?`}
+        confirmLabel="Create"
+        confirmColor="var(--green)"
+        onConfirm={confirmCreate}
+        onCancel={() => setShowCreateConfirm(false)}
+      />
+    )}
     </div>
   );
 }
@@ -2475,6 +2763,9 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     showInviteToast("Group deleted", "red");
   };
 
+  const [confirmInvite, setConfirmInvite] = useState(null); // { gid, target, groupName }
+  const [membersPopup, setMembersPopup] = useState(null); // group object when open
+
   const sendInvite = async (gid) => {
     const target = (memberInput[gid] || "").trim().toLowerCase();
     if (!target) return;
@@ -2485,13 +2776,26 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
     const group = groups.find(g => g.id === gid);
     if (group?.isDefault) { showInviteToast("Can't invite others to your default group", "red"); return; }
     if (group?.members?.includes(target)) { showInviteToast(`${target} is already a member`, "red"); return; }
-    if (invitations.some(inv => inv.to === target && inv.groupId === gid && inv.status === "pending")) {
-      showInviteToast(`Invite already sent to ${target}`, "red"); return;
+
+    // Check Supabase directly for any existing pending invite (not just local state)
+    const existingInvites = await dbGet("taskya_invitations", { to_user: target, group_id: gid, status: "pending" });
+    if (Array.isArray(existingInvites) && existingInvites.length > 0) {
+      showInviteToast(`Invite already pending for ${target}`, "red");
+      return;
     }
+
+    // All validations passed — show confirmation before sending
+    setConfirmInvite({ gid, target, groupName: group?.name });
+  };
+
+  const confirmSendInvite = async () => {
+    if (!confirmInvite) return;
+    const { gid, target, groupName } = confirmInvite;
     const invId = `inv_${Date.now()}`;
-    await dbInsert("taskya_invitations", { id: invId, group_id: gid, group_name: group?.name, from_user: userName, to_user: target, status: "pending" });
-    setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: group?.name, status: "pending" }]);
+    await dbInsert("taskya_invitations", { id: invId, group_id: gid, group_name: groupName, from_user: userName, to_user: target, status: "pending" });
+    setInvitations(p => [...p, { id: invId, from: userName, to: target, groupId: gid, groupName: groupName, status: "pending" }]);
     setMemberInput(p => ({ ...p, [gid]: "" }));
+    setConfirmInvite(null);
     showInviteToast(`Invite sent to ${target} ✓`, "green");
   };
 
@@ -2660,35 +2964,24 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
                     <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 3 }}>{gd}/{gt.length} completed</div>
                   </div>
 
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Members</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 }}>
-                    {g.members.filter(m => m !== userName).length === 0 && <span style={{ fontSize: 11, color: "var(--text2)", fontStyle: "italic" }}>No other members</span>}
-                    {g.members.filter(m => m !== userName).map((m, j) => {
-                      // Can only remove a member if I am the creator OR the member is not the creator
-                      const canRemove = isCreator && m !== g.createdBy;
-                      return (
-                        <div key={j} style={{
-                          display: "flex", alignItems: "center", gap: 5,
-                          padding: canRemove ? "3px 8px 3px 3px" : "3px 10px 3px 3px", borderRadius: 100,
-                          background: "var(--bg)", border: "1px solid var(--border)", fontSize: 11,
-                        }}>
-                          <div style={{
-                            width: 20, height: 20, borderRadius: "50%", background: g.color, opacity: 0.8,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            fontSize: 8, fontWeight: 700, color: "white",
-                          }}>{m[0]}</div>
-                          {m}
-                          {m === g.createdBy && <span style={{ fontSize: 8, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", marginLeft: 2 }}>owner</span>}
-                          {canRemove && (
-                            <button onClick={() => setConfirmRemoveMember({ groupId: g.id, memberName: m, groupName: g.name })} style={{
-                              background: "none", border: "none", color: "var(--text2)", cursor: "pointer",
-                              fontSize: 13, padding: 0, marginLeft: 1, lineHeight: 1,
-                            }}>×</button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {/* Members button — opens popup */}
+                  <button onClick={() => setMembersPopup(g)} style={{
+                    display: "flex", alignItems: "center", gap: 8, width: "100%",
+                    padding: "9px 12px", border: "1px solid var(--border)",
+                    borderRadius: "var(--rs)", background: "var(--bg)",
+                    fontSize: 12, fontWeight: 600, color: "var(--text)",
+                    cursor: "pointer", fontFamily: "inherit",
+                    transition: "background 0.15s ease", marginBottom: 6,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#F0ECE6"}
+                  onMouseLeave={e => e.currentTarget.style.background = "var(--bg)"}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    <span>Members ({g.members.length})</span>
+                    <svg style={{ marginLeft: "auto" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
 
                   {/* pending invites for this group */}
                   {pendingSent.length > 0 && (
@@ -2769,6 +3062,116 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
           onCancel={() => setConfirmRemoveMember(null)}
         />
       )}
+
+      {/* send invite confirmation */}
+      {confirmInvite && (
+        <ConfirmPopup
+          size="sm"
+          title="Send invite"
+          message={`Send invite to "${confirmInvite.target}" for group "${confirmInvite.groupName}"?`}
+          confirmLabel="Send"
+          confirmColor="var(--blue)"
+          onConfirm={confirmSendInvite}
+          onCancel={() => setConfirmInvite(null)}
+        />
+      )}
+
+      {/* Members popup — shows all members with option to remove (admin only) */}
+      {membersPopup && (() => {
+        const g = groups.find(grp => grp.id === membersPopup.id) || membersPopup;
+        const isCreator = g.createdBy === userName;
+        return (
+          <div style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(28,25,23,0.55)", zIndex: 99999, padding: 20,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+          }} onClick={() => setMembersPopup(null)}>
+            <div className="si" style={{
+              background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
+              width: "calc(100% - 40px)", maxWidth: 440,
+              boxShadow: "0 12px 40px rgba(28,25,23,0.25)",
+              maxHeight: "80vh", overflowY: "auto",
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <h4 style={{ fontSize: 17, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: "50%", background: g.color }} />
+                  {g.name}
+                </h4>
+                <button onClick={() => setMembersPopup(null)} style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--text2)", padding: 4, display: "flex",
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              <p style={{ fontSize: 11, color: "var(--text2)", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 700 }}>
+                {g.members.length} {g.members.length === 1 ? "Member" : "Members"}
+              </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(() => {
+                  // Sort: owner first, then rest alphabetically
+                  const sorted = [...g.members].sort((a, b) => {
+                    if (a === g.createdBy) return -1;
+                    if (b === g.createdBy) return 1;
+                    return a.localeCompare(b);
+                  });
+                  return sorted;
+                })().map((m, idx) => {
+                  const isOwner = m === g.createdBy;
+                  const isMe = m === userName;
+                  const canRemove = isCreator && !isOwner && !isMe;
+                  return (
+                    <div key={idx} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 12px", borderRadius: "var(--rs)",
+                      background: "var(--bg)", border: "1px solid var(--border)",
+                    }}>
+                      <div style={{
+                        width: 34, height: 34, borderRadius: "50%",
+                        background: g.color, color: "white",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 14, fontWeight: 700, flexShrink: 0,
+                      }}>{m[0]?.toUpperCase()}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {m} {isMe && <span style={{ fontSize: 10, color: "var(--text2)", fontWeight: 500 }}>(you)</span>}
+                        </div>
+                        <div style={{ fontSize: 10, color: isOwner ? "var(--accent)" : "var(--text2)", fontWeight: isOwner ? 700 : 500, textTransform: "uppercase", letterSpacing: "0.04em", marginTop: 2 }}>
+                          {isOwner ? "Owner / Admin" : "Member"}
+                        </div>
+                      </div>
+                      {canRemove && (
+                        <button onClick={() => {
+                          setMembersPopup(null);
+                          setConfirmRemoveMember({ groupId: g.id, memberName: m, groupName: g.name });
+                        }} style={{
+                          padding: "6px 12px", border: "1px solid var(--red)",
+                          borderRadius: "var(--rs)", background: "transparent",
+                          color: "var(--red)", fontSize: 11, fontWeight: 600,
+                          cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+                          transition: "background 0.15s ease",
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = "var(--red)"; e.currentTarget.style.color = "white"; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--red)"; }}
+                        >Remove</button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!isCreator && (
+                <p style={{ fontSize: 10.5, color: "var(--text2)", textAlign: "center", marginTop: 14, fontStyle: "italic" }}>
+                  Only the group owner can remove members
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {inviteToast && <Toast message={inviteToast.message} type={inviteToast.type} />}
 

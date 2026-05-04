@@ -662,6 +662,37 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
   const [globalToast, setGlobalToast] = useState(null);
   const firedNotifRef = useRef({});
 
+  // ── Guided tour state ──
+  const [tourStep, setTourStep] = useState(null); // null = not active
+
+  // Trigger tour on first login per user (uses localStorage flag)
+  useEffect(() => {
+    if (!userName) return;
+    const flag = localStorage.getItem(`taskya_tour_seen_${userName}`);
+    if (!flag) {
+      // small delay so the app is fully rendered first
+      const t = setTimeout(() => setTourStep(0), 700);
+      return () => clearTimeout(t);
+    }
+  }, [userName]);
+
+  const advanceTour = () => {
+    if (tourStep === null) return;
+    if (tourStep >= TOUR_STEPS.length - 1) {
+      // Finish
+      localStorage.setItem(`taskya_tour_seen_${userName}`, "1");
+      setTourStep(null);
+      setPage("tasks");
+    } else {
+      setTourStep(tourStep + 1);
+    }
+  };
+
+  const skipTour = () => {
+    localStorage.setItem(`taskya_tour_seen_${userName}`, "1");
+    setTourStep(null);
+  };
+
   const showGlobalToast = (msg, type = "dark") => {
     setGlobalToast({ message: msg, type });
     setTimeout(() => setGlobalToast(null), 3000);
@@ -1129,6 +1160,17 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
 
       {globalToast && <Toast message={globalToast.message} type={globalToast.type} />}
 
+      {/* ── guided tour for first-time users ── */}
+      {tourStep !== null && (
+        <TourOverlay
+          step={tourStep}
+          onNext={advanceTour}
+          onSkip={skipTour}
+          setPage={setPage}
+          currentPage={page}
+        />
+      )}
+
       {/* ── bottom tab bar ── */}
       <nav style={{
         position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
@@ -1143,7 +1185,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
           const active = page === n.id;
           const pendingInvites = n.id === "groups" ? invitations.filter(inv => inv.to === userName && inv.status === "pending").length : 0;
           return (
-            <button key={n.id} onClick={() => setPage(n.id)} style={{
+            <button key={n.id} data-tour={`nav-${n.id}`} onClick={() => setPage(n.id)} style={{
               display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
               padding: "6px 16px", color: active ? "var(--accent)" : "var(--text2)",
@@ -1268,7 +1310,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage, onOpenSettings 
       </div>
 
       {/* upcoming due task spotlight */}
-      <div className="fu" style={{
+      <div data-tour="upcoming-spotlight" className="fu" style={{
         background: "var(--bg-dark)", borderRadius: "var(--r)", padding: "18px 20px",
         marginBottom: 18, position: "relative", overflow: "hidden", animationDelay: "0.04s",
         minHeight: 88, touchAction: upcomingTasks.length > 1 ? "pan-y" : "auto",
@@ -1344,7 +1386,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage, onOpenSettings 
       </div>
 
       {/* stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap, 10px)", marginBottom: 18 }}>
+      <div data-tour="dashboard-stats" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap, 10px)", marginBottom: 18 }}>
         {stats.map((s, i) => (
           <div key={i} className="fu" onClick={() => setPage && setPage("tasks")} style={{
             background: "var(--bg-card)", borderRadius: "var(--r)", padding: "var(--card-pad, 14px)",
@@ -1367,7 +1409,7 @@ function Dashboard({ tasks, groups, userName, onLogout, setPage, onOpenSettings 
       </div>
 
       {/* groups overview */}
-      <div className="fu" style={{ animationDelay: "0.3s" }}>
+      <div data-tour="home-groups" className="fu" style={{ animationDelay: "0.3s" }}>
         <SectionHeader title="Groups" />
         {groups.length === 0 ? (
           <EmptyMsg msg="No groups yet" />
@@ -1492,12 +1534,12 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
       </div>
 
       {/* view / add / missed tabs */}
-      <div className="fu" style={{
+      <div data-tour="tasks-tabs" className="fu" style={{
         display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 2, marginBottom: 14,
         background: "#F0ECE6", borderRadius: "var(--rs)", padding: 3, animationDelay: "0.04s",
       }}>
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
+          <button key={t.id} onClick={() => setTab(t.id)} data-tour={t.id === "add" ? "tab-add" : undefined} style={{
             padding: "10px 0", border: "none", borderRadius: 10,
             background: tab === t.id ? "var(--bg-card)" : "transparent",
             color: tab === t.id ? "var(--text)" : "var(--text2)",
@@ -1519,7 +1561,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
       </div>
 
       {/* time filter pills — shown on all tabs */}
-      <div className="fu" style={{
+      <div data-tour="time-filters" className="fu" style={{
         display: "flex", gap: 6, marginBottom: 14,
         flexWrap: "nowrap", animationDelay: "0.08s",
         width: "100%",
@@ -2060,10 +2102,32 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
 
   const isNoDue = !defaultTime;
   const initTime = defaultTime || "daily";
+
+  // Pick best initial group: default first, then user-owned, then first available
+  const pickInitialGroup = (gs) => {
+    if (!gs || gs.length === 0) return "";
+    const def = gs.find(g => g.isDefault || g.is_default);
+    if (def) return def.name;
+    const owned = gs.find(g => g.createdBy === userName || g.created_by === userName);
+    if (owned) return owned.name;
+    return gs[0].name;
+  };
+
   const [form, setForm] = useState({
-    title: "", desc: "", group: groups[0]?.name || "", time: initTime, priority: "medium",
+    title: "", desc: "", group: pickInitialGroup(groups), time: initTime, priority: "medium",
     dueDate: isNoDue ? "" : getDefaultDue(initTime), dueTime: isNoDue ? "" : "23:59",
   });
+
+  // If groups loaded AFTER form mounted (typical on refresh), backfill the group
+  useEffect(() => {
+    if (!form.group && groups.length > 0) {
+      setForm(prev => ({ ...prev, group: pickInitialGroup(groups) }));
+    }
+    // Also handle case where current form.group no longer exists in groups (deleted)
+    else if (form.group && groups.length > 0 && !groups.some(g => g.name === form.group)) {
+      setForm(prev => ({ ...prev, group: pickInitialGroup(groups) }));
+    }
+  }, [groups]);
   const [errors, setErrors] = useState({});
   const [dueDateManual, setDueDateManual] = useState(false);
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
@@ -2105,7 +2169,7 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
     dispatch({ type: "ADD_TASK", payload: { ...form, groupId: selectedGroup?.id, title: form.title.trim(), status: "pending", dueDate: form.dueDate || null, dueTime: form.dueTime || null } });
     showToast("Task added successfully", "green");
     const resetTime = defaultTime || "daily";
-    setForm({ title: "", desc: "", group: groups[0]?.name || "", time: resetTime, priority: "medium", dueDate: isNoDue ? "" : getDefaultDue(resetTime), dueTime: isNoDue ? "" : "23:59" });
+    setForm({ title: "", desc: "", group: pickInitialGroup(groups), time: resetTime, priority: "medium", dueDate: isNoDue ? "" : getDefaultDue(resetTime), dueTime: isNoDue ? "" : "23:59" });
     setErrors({});
     setDueDateManual(false);
   };
@@ -2709,7 +2773,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
       {inviteToast && <Toast message={inviteToast.message} type={inviteToast.type} />}
 
       {/* floating action button - add group */}
-      <button onClick={toggleForm} className="fab-group" style={{
+      <button onClick={toggleForm} data-tour="fab-group" className="fab-group" style={{
         position: "fixed", bottom: `calc(80px + env(safe-area-inset-bottom, 0px))`,
         width: 52, height: 52, borderRadius: "50%", border: "none",
         background: "var(--bg-dark)", color: "var(--text-inv)",
@@ -3283,4 +3347,175 @@ function Toast({ message, type }) {
 
 function EmptyMsg({ msg }) {
   return <div style={{ color: "var(--text2)", fontSize: 12, padding: "14px 0", textAlign: "center", fontStyle: "italic" }}>{msg}</div>;
+}
+
+/* ═══════════════════════ GUIDED TOUR ═══════════════════════ */
+
+const TOUR_STEPS = [
+  { target: "nav-dashboard",      page: "dashboard", title: "Welcome to TASKYA",      body: "This is your Home tab. Tap here anytime to see your dashboard.", placement: "top" },
+  { target: "upcoming-spotlight", page: "dashboard", title: "Next Due Task",          body: "Your most urgent upcoming task lives here. Swipe through if there are several.", placement: "bottom" },
+  { target: "dashboard-stats",    page: "dashboard", title: "Progress at a Glance",   body: "Quick stats — completed, pending, missed. Tap any card to jump to that view.", placement: "bottom" },
+  { target: "home-groups",        page: "dashboard", title: "Your Groups",            body: "All your groups with their progress bars. Tap one to manage it.", placement: "top" },
+  { target: "nav-tasks",          page: "tasks",     title: "Tasks Tab",              body: "All your tasks in one place — view, add, or check missed ones.", placement: "top" },
+  { target: "tasks-tabs",         page: "tasks",     title: "View · Add · Missed",    body: "Three quick views: see what's pending, create something new, or catch up on missed.", placement: "bottom" },
+  { target: "time-filters",       page: "tasks",     title: "Time Filters",           body: "Filter by daily, weekly, monthly, or quarterly to focus on what matters now.", placement: "bottom" },
+  { target: "tab-add",            page: "tasks",     title: "Create a Task",          body: "Tap Add to fill in title, group, priority, and due date.", placement: "bottom" },
+  { target: null,                 page: "tasks",     title: "Task Details",           body: "Tap any task card to see full details, activity timeline, and reminder options.", placement: "center" },
+  { target: "nav-groups",         page: "groups",    title: "Groups Tab",             body: "Create groups, invite teammates, and collaborate on shared tasks.", placement: "top" },
+  { target: "fab-group",          page: "groups",    title: "Create a Group",         body: "Tap the + button to start a new group. You can invite members after creating.", placement: "left" },
+  { target: null,                 page: "tasks",     title: "You're all set!",        body: "That's it — you're ready to use TASKYA. Tap Finish to get started.", placement: "center" },
+];
+
+function TourOverlay({ step, onNext, onSkip, setPage, currentPage }) {
+  const [rect, setRect] = useState(null);
+  const stepData = TOUR_STEPS[step];
+  const isLast = step === TOUR_STEPS.length - 1;
+
+  // Auto-switch page if the current step requires a different page
+  useEffect(() => {
+    if (stepData.page && stepData.page !== currentPage) {
+      setPage(stepData.page);
+    }
+  }, [step]);
+
+  // Find the target element and compute its rect
+  useEffect(() => {
+    if (!stepData.target) { setRect(null); return; }
+    let attempts = 0;
+    const findEl = () => {
+      const el = document.querySelector(`[data-tour="${stepData.target}"]`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+        // scroll into view if needed
+        if (r.top < 80 || r.bottom > window.innerHeight - 200) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      } else if (attempts < 20) {
+        attempts++;
+        setTimeout(findEl, 150);
+      }
+    };
+    // small delay to let page transition + render finish
+    const t = setTimeout(findEl, 250);
+    return () => clearTimeout(t);
+  }, [step, currentPage]);
+
+  // Recompute rect on resize/scroll
+  useEffect(() => {
+    if (!stepData.target) return;
+    const update = () => {
+      const el = document.querySelector(`[data-tour="${stepData.target}"]`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      }
+    };
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [step]);
+
+  // Card position
+  const cardWidth = 280;
+  const cardMargin = 16;
+  let cardStyle = {
+    position: "fixed", zIndex: 10001, width: cardWidth, maxWidth: "calc(100vw - 32px)",
+    background: "var(--bg-card)", border: "2px solid #2563EB",
+    borderRadius: "var(--r)", padding: "18px 18px 14px",
+    boxShadow: "0 12px 40px rgba(37,99,235,0.25), 0 0 0 8px rgba(37,99,235,0.08)",
+  };
+
+  if (!rect || stepData.placement === "center") {
+    cardStyle.top = "50%";
+    cardStyle.left = "50%";
+    cardStyle.transform = "translate(-50%, -50%)";
+  } else {
+    const targetCenterX = rect.left + rect.width / 2;
+    const targetCenterY = rect.top + rect.height / 2;
+    const placement = stepData.placement || "bottom";
+
+    if (placement === "top") {
+      cardStyle.bottom = window.innerHeight - rect.top + 16;
+      cardStyle.left = Math.max(cardMargin, Math.min(targetCenterX - cardWidth / 2, window.innerWidth - cardWidth - cardMargin));
+    } else if (placement === "bottom") {
+      cardStyle.top = rect.top + rect.height + 16;
+      cardStyle.left = Math.max(cardMargin, Math.min(targetCenterX - cardWidth / 2, window.innerWidth - cardWidth - cardMargin));
+    } else if (placement === "left") {
+      cardStyle.right = window.innerWidth - rect.left + 16;
+      cardStyle.top = Math.max(cardMargin, Math.min(targetCenterY - 60, window.innerHeight - 200));
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 10000, pointerEvents: "none" }}>
+      {/* Dark overlay with cutout for the target */}
+      <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}>
+        <defs>
+          <mask id="tour-mask">
+            <rect width="100%" height="100%" fill="white" />
+            {rect && (
+              <rect x={rect.left - 6} y={rect.top - 6} width={rect.width + 12} height={rect.height + 12} rx="10" fill="black" />
+            )}
+          </mask>
+        </defs>
+        <rect width="100%" height="100%" fill="rgba(28,25,23,0.65)" mask="url(#tour-mask)" />
+      </svg>
+
+      {/* Pulsing border around target */}
+      {rect && (
+        <div style={{
+          position: "fixed", zIndex: 10000, pointerEvents: "none",
+          top: rect.top - 6, left: rect.left - 6,
+          width: rect.width + 12, height: rect.height + 12,
+          border: "3px solid #2563EB", borderRadius: 10,
+          animation: "tourPulse 1.6s ease-in-out infinite",
+        }} />
+      )}
+
+      {/* Tour card */}
+      <div style={{ ...cardStyle, pointerEvents: "auto", animation: "fu 0.3s ease both" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 8, background: "#DBEAFE",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#2563EB", fontSize: 13, fontWeight: 700, flexShrink: 0,
+          }}>{step + 1}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", flex: 1 }}>
+            {stepData.title}
+          </div>
+        </div>
+        <p style={{ fontSize: 12.5, color: "var(--text2)", lineHeight: 1.55, marginBottom: 14 }}>
+          {stepData.body}
+        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text2)", letterSpacing: "0.06em" }}>
+            {step + 1} / {TOUR_STEPS.length}
+          </span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={onSkip} style={{
+              padding: "6px 12px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+              background: "transparent", color: "var(--text2)", fontSize: 11, fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>Skip</button>
+            <button onClick={onNext} style={{
+              padding: "6px 16px", border: "none", borderRadius: "var(--rs)",
+              background: "#2563EB", color: "white", fontSize: 11, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>{isLast ? "Finish" : "Next"}</button>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes tourPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.5); }
+          50% { box-shadow: 0 0 0 10px rgba(37,99,235,0); }
+        }
+      `}</style>
+    </div>
+  );
 }

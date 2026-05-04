@@ -385,16 +385,14 @@ export default function TaskManager() {
   }, []);
 
   // Load all data from Supabase on mount / login
-  // Core data fetcher — shared by initial load and silent refresh
+  // Core data fetcher — shared by initial load and silent refresh.
+  // ATOMIC: builds full result first, only commits to state if everything succeeded.
   const fetchAllData = async (uname) => {
     // 0. Load user row for notification settings
     const userRows = await dbGet("taskya_users", { username: uname });
+    let nextNotifSettings = null;
     if (userRows && userRows[0] && userRows[0].notification_settings) {
-      setNotifSettings(prev => {
-        const merged = { ...DEFAULT_NOTIF_SETTINGS, ...userRows[0].notification_settings };
-        // Only update if something actually changed (avoids re-render loops)
-        return JSON.stringify(prev) !== JSON.stringify(merged) ? merged : prev;
-      });
+      nextNotifSettings = { ...DEFAULT_NOTIF_SETTINGS, ...userRows[0].notification_settings };
     }
 
     // 1. Get group IDs this user belongs to
@@ -403,9 +401,7 @@ export default function TaskManager() {
 
     let loadedGroups = [];
     if (memberGroupIds.length > 0) {
-      // 2. Load those groups
       const groupsRaw = await dbGetIn("taskya_groups", "id", memberGroupIds);
-      // 3. Load members for each group
       for (const g of (groupsRaw || [])) {
         const gMembers = await dbGet("taskya_group_members", { group_id: g.id });
         loadedGroups.push({
@@ -417,20 +413,16 @@ export default function TaskManager() {
       }
     }
 
-    // 4. Ensure user has a default group.
-    // Helper: check if a group is the user's default. Handles all is_default representations
-    // PLUS the legacy id-pattern (mygroup_{user}_*) for groups where is_default may be null.
+    // 2. Ensure user has a default group
     const isDefaultGroup = (g) => {
       const flag = g.is_default;
       if (flag === true || flag === 1 || flag === "true") return true;
       if (g.id && typeof g.id === "string" && g.id.startsWith(`mygroup_${uname}_`)) return true;
       return false;
     };
-
     const hasDefault = loadedGroups.some(g => isDefaultGroup(g) && g.created_by === uname);
 
     if (!hasDefault) {
-      // Try to find an existing default in the DB (in case user lost membership row)
       let recovered = null;
       try {
         const userGroups = await dbGet("taskya_groups", { created_by: uname });
@@ -438,10 +430,9 @@ export default function TaskManager() {
       } catch (e) { console.warn("default lookup failed:", e); }
 
       if (recovered) {
-        // Group exists — re-add membership (idempotent) and load it
         try {
           await dbInsert("taskya_group_members", { group_id: recovered.id, username: uname });
-        } catch {} // already a member, ignore
+        } catch {}
         const gMembers = await dbGet("taskya_group_members", { group_id: recovered.id });
         loadedGroups.push({
           ...recovered,
@@ -450,7 +441,6 @@ export default function TaskManager() {
           isDefault: true,
         });
       } else {
-        // Truly new user — create the default group
         const gId = `mygroup_${uname}_${Date.now()}`;
         try {
           await dbInsert("taskya_groups", {
@@ -465,12 +455,13 @@ export default function TaskManager() {
           });
         } catch (e) {
           console.error("Default group creation failed:", e);
+          // CRITICAL: bail out without touching state if we can't ensure a default group
+          throw new Error("Default group setup failed: " + e.message);
         }
       }
     }
-    setGroups(loadedGroups);
 
-    // 5. Load all tasks for user's groups
+    // 3. Load all tasks for user's groups
     const allGroupIds = loadedGroups.map(g => g.id);
     let loadedTasks = [];
     if (allGroupIds.length > 0) {
@@ -483,14 +474,23 @@ export default function TaskManager() {
         notify_before: t.notify_before || null,
       }));
     }
-    setAllTasks(loadedTasks);
 
-    // 6. Load invitations sent to this user
+    // 4. Load invitations
     const invRows = await dbGet("taskya_invitations", { to_user: uname });
-    setInvitations((invRows || []).map(inv => ({
+    const loadedInvs = (invRows || []).map(inv => ({
       id: inv.id, groupId: inv.group_id, groupName: inv.group_name,
       from: inv.from_user, to: inv.to_user, status: inv.status,
-    })));
+    }));
+
+    // ── ALL FETCHES SUCCEEDED — now commit to state atomically ──
+    if (nextNotifSettings) {
+      setNotifSettings(prev => {
+        return JSON.stringify(prev) !== JSON.stringify(nextNotifSettings) ? nextNotifSettings : prev;
+      });
+    }
+    setGroups(loadedGroups);
+    setAllTasks(loadedTasks);
+    setInvitations(loadedInvs);
   };
 
   // Full load (shows spinner)
@@ -501,8 +501,10 @@ export default function TaskManager() {
   };
 
   // Silent reload (no spinner — used for polling & after mutations)
+  // CRITICAL: catches errors and does nothing on failure — never wipes state.
   const silentReload = async (uname) => {
-    try { await fetchAllData(uname); } catch (e) { console.error("Silent reload error:", e); }
+    try { await fetchAllData(uname); }
+    catch (e) { console.warn("Silent reload skipped (will retry next tick):", e.message); }
   };
 
   useEffect(() => {
@@ -617,12 +619,42 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
   useEffect(() => {
     if (!notifSettings.enabled) return;
 
-    const matchesTime = (now, timeStr, toleranceMs = 60000) => {
+    // Persistent dedup keyed by `${userName}_${key}` — survives reloads
+    const NOTIF_FIRED_LS_KEY = `taskya_notif_fired_${userName}`;
+    const loadFired = () => {
+      try { return JSON.parse(localStorage.getItem(NOTIF_FIRED_LS_KEY) || "{}"); }
+      catch { return {}; }
+    };
+    const saveFired = (obj) => {
+      // Garbage-collect old entries (older than 3 days) to prevent unbounded growth
+      const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+      const cleaned = {};
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === "number" && v > cutoff) cleaned[k] = v;
+      }
+      try { localStorage.setItem(NOTIF_FIRED_LS_KEY, JSON.stringify(cleaned)); } catch {}
+    };
+    const markFired = (key) => {
+      const fired = loadFired();
+      fired[key] = Date.now();
+      saveFired(fired);
+    };
+    const wasFired = (key) => {
+      const fired = loadFired();
+      return !!fired[key];
+    };
+
+    // Time match — wider window so we don't miss with imperfect interval alignment.
+    // Returns true if `now` is within the past TIME_MATCH_WINDOW minutes of `timeStr` AND we haven't fired yet.
+    const TIME_MATCH_WINDOW_MS = 5 * 60 * 1000; // 5 minute window
+    const matchesTime = (now, timeStr) => {
       if (!timeStr) return false;
       const [h, m] = timeStr.split(":").map(Number);
       const target = new Date(now);
       target.setHours(h, m, 0, 0);
-      return Math.abs(now - target) <= toleranceMs;
+      const diff = now - target;
+      // fire if we're between 0 and +TIME_MATCH_WINDOW_MS past the target time
+      return diff >= 0 && diff <= TIME_MATCH_WINDOW_MS;
     };
 
     const subtractDuration = (dateMs, threshold) => {
@@ -663,9 +695,9 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
 
       // Morning summary
       if (notifSettings.morning_summary && matchesTime(now, notifSettings.morning_time)) {
-        const key = `notify_morning_${todayStr}`;
-        if (!firedNotifRef.current[key]) {
-          firedNotifRef.current[key] = true;
+        const key = `morning_${todayStr}`;
+        if (!wasFired(key)) {
+          markFired(key);
           const pendingToday = allTasks.filter(t => t.status === "pending" && t.dueDate <= todayStr);
           if (pendingToday.length > 0) {
             fireNotification({
@@ -679,9 +711,9 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
 
       // Evening reminder
       if (notifSettings.evening_reminder && matchesTime(now, notifSettings.evening_time)) {
-        const key = `notify_evening_${todayStr}`;
-        if (!firedNotifRef.current[key]) {
-          firedNotifRef.current[key] = true;
+        const key = `evening_${todayStr}`;
+        if (!wasFired(key)) {
+          markFired(key);
           const pendingToday = allTasks.filter(t => t.status === "pending" && t.dueDate <= todayStr);
           if (pendingToday.length > 0) {
             fireNotification({
@@ -693,17 +725,20 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         }
       }
 
-      // Pre-due reminders
+      // Pre-due reminders. CATCH-UP LOGIC: fire if now >= triggerMs AND now < dueMs AND not fired yet.
       const pendingTasks = allTasks.filter(t => t.status === "pending" && t.dueDate);
+      const nowMs = Date.now();
       for (const task of pendingTasks) {
         const threshold = task.notify_before || notifSettings.default_pre_due;
         if (!threshold || threshold === "off") continue;
         const dueStr = task.dueDate + "T" + (task.dueTime || "23:59");
         const dueMs = new Date(dueStr).getTime();
+        if (isNaN(dueMs)) continue;
         const triggerMs = subtractDuration(dueMs, threshold);
-        const key = `notify_fired_${task.id}_${threshold}_${todayStr}`;
-        if (!firedNotifRef.current[key] && Math.abs(Date.now() - triggerMs) <= 65000) {
-          firedNotifRef.current[key] = true;
+        const key = `predue_${task.id}_${threshold}`;
+        // Fire if we're past trigger time, not yet past due, and haven't fired this combo before
+        if (nowMs >= triggerMs && nowMs < dueMs && !wasFired(key)) {
+          markFired(key);
           fireNotification({
             title: `📌 Due in ${threshold}`,
             body: `"${task.title}" is due soon.`,
@@ -714,9 +749,11 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       }
     };
 
+    // Run immediately on mount/settings change so the user doesn't wait 60s
+    tick();
     const iv = setInterval(tick, 60000);
     return () => clearInterval(iv);
-  }, [notifSettings, allTasks]);
+  }, [notifSettings, allTasks, userName]);
 
   // Show soft prompt once after first task is created (only if permission not asked yet)
   const prevTaskCount = useRef(allTasks.length);
@@ -749,56 +786,98 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
           ...payload, id: String(nowTs), status: "pending", createdBy: userName,
           createdAt: nowTs, activity: [{ type: "created", by: userName, at: nowTs }],
         };
-        await dbInsert("taskya_tasks", {
-          id: newTask.id, title: newTask.title, description: newTask.desc || "",
-          group_id: newTask.groupId, group_name: newTask.group,
-          priority: newTask.priority, status: "pending", time: newTask.time,
-          due_date: newTask.dueDate, due_time: newTask.dueTime,
-          created_by: userName, created_at: nowTs, activity: newTask.activity,
-        });
-        setAllTasks(prev => [...prev, newTask]);
+        try {
+          await dbInsert("taskya_tasks", {
+            id: newTask.id, title: newTask.title, description: newTask.desc || "",
+            group_id: newTask.groupId, group_name: newTask.group,
+            priority: newTask.priority, status: "pending", time: newTask.time,
+            due_date: newTask.dueDate, due_time: newTask.dueTime,
+            created_by: userName, created_at: nowTs, activity: newTask.activity,
+          });
+          setAllTasks(prev => [...prev, newTask]);
+        } catch (e) {
+          console.error("ADD_TASK failed:", e);
+          alert("Failed to save task. Please check your connection and try again.");
+        }
         break;
       }
       case "TOGGLE_STATUS": {
-        setAllTasks(prev => prev.map(t => {
-          if (t.id !== action.id) return t;
-          const activity = t.activity || [];
-          if (t.status === "completed") {
-            const updated = { ...t, status: "pending", completedAt: null, activity: [...activity, { type: "reopened", by: userName, at: nowTs }] };
-            dbUpdate("taskya_tasks", { status: "pending", completed_at: null, activity: updated.activity }, { id: t.id });
-            return updated;
-          }
-          const updated = { ...t, status: "completed", completedAt: nowTs, delayed: t.status === "missed" || t.delayed, activity: [...activity, { type: "completed", by: userName, at: nowTs }] };
-          dbUpdate("taskya_tasks", { status: "completed", completed_at: nowTs, delayed: updated.delayed, activity: updated.activity }, { id: t.id });
-          return updated;
-        }));
+        // Compute the update synchronously from current state to avoid stale closures
+        let target = null;
+        setAllTasks(prev => {
+          target = prev.find(t => t.id === action.id);
+          return prev;
+        });
+        if (!target) break;
+        const activity = target.activity || [];
+        let updated;
+        if (target.status === "completed") {
+          updated = { ...target, status: "pending", completedAt: null, activity: [...activity, { type: "reopened", by: userName, at: nowTs }] };
+        } else {
+          updated = { ...target, status: "completed", completedAt: nowTs, delayed: target.status === "missed" || target.delayed, activity: [...activity, { type: "completed", by: userName, at: nowTs }] };
+        }
+        try {
+          await dbUpdate("taskya_tasks", {
+            status: updated.status,
+            completed_at: updated.completedAt,
+            delayed: updated.delayed,
+            activity: updated.activity,
+          }, { id: target.id });
+          setAllTasks(prev => prev.map(t => t.id === target.id ? updated : t));
+        } catch (e) {
+          console.error("TOGGLE_STATUS failed:", e);
+          alert("Couldn't update task. Please try again.");
+        }
         break;
       }
       case "DELETE_TASK":
-        await dbDelete("taskya_tasks", { id: action.id });
-        setAllTasks(prev => prev.filter(t => t.id !== action.id));
+        try {
+          await dbDelete("taskya_tasks", { id: action.id });
+          setAllTasks(prev => prev.filter(t => t.id !== action.id));
+        } catch (e) {
+          console.error("DELETE_TASK failed:", e);
+          alert("Couldn't delete task. Please try again.");
+        }
         break;
       case "AUTO_MISS": {
-        setAllTasks(prev => prev.map(t => {
-          if (t.status !== "pending" || !t.dueDate) return t;
-          const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59")).getTime();
-          if (due < nowTs) {
-            const activity = [...(t.activity || []), { type: "missed", by: "system", at: nowTs }];
-            dbUpdate("taskya_tasks", { status: "missed", activity }, { id: t.id });
-            return { ...t, status: "missed", activity };
+        // Auto-mark overdue tasks. Each DB write is awaited individually.
+        const tasksToMiss = [];
+        setAllTasks(prev => {
+          for (const t of prev) {
+            if (t.status !== "pending" || !t.dueDate) continue;
+            const due = new Date(t.dueDate + (t.dueTime ? "T" + t.dueTime : "T23:59")).getTime();
+            if (due < nowTs) tasksToMiss.push(t);
           }
-          return t;
-        }));
+          return prev;
+        });
+        for (const t of tasksToMiss) {
+          const activity = [...(t.activity || []), { type: "missed", by: "system", at: nowTs }];
+          try {
+            await dbUpdate("taskya_tasks", { status: "missed", activity }, { id: t.id });
+            setAllTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: "missed", activity } : x));
+          } catch (e) { console.warn("AUTO_MISS update failed for", t.id, e); }
+        }
         break;
       }
       case "UPDATE_DUE": {
-        setAllTasks(prev => prev.map(t => {
-          if (t.id !== action.id) return t;
-          const activity = [...(t.activity || []), { type: "rescheduled", by: userName, at: nowTs, dueDate: action.dueDate, dueTime: action.dueTime }];
-          const updated = { ...t, dueDate: action.dueDate, dueTime: action.dueTime, status: "pending", rescheduled: true, delayed: true, activity };
-          dbUpdate("taskya_tasks", { due_date: action.dueDate, due_time: action.dueTime, status: "pending", rescheduled: true, delayed: true, activity }, { id: t.id });
-          return updated;
-        }));
+        let target = null;
+        setAllTasks(prev => {
+          target = prev.find(t => t.id === action.id);
+          return prev;
+        });
+        if (!target) break;
+        const activity = [...(target.activity || []), { type: "rescheduled", by: userName, at: nowTs, dueDate: action.dueDate, dueTime: action.dueTime }];
+        const updated = { ...target, dueDate: action.dueDate, dueTime: action.dueTime, status: "pending", rescheduled: true, delayed: true, activity };
+        try {
+          await dbUpdate("taskya_tasks", {
+            due_date: action.dueDate, due_time: action.dueTime,
+            status: "pending", rescheduled: true, delayed: true, activity,
+          }, { id: target.id });
+          setAllTasks(prev => prev.map(t => t.id === target.id ? updated : t));
+        } catch (e) {
+          console.error("UPDATE_DUE failed:", e);
+          alert("Couldn't reschedule task. Please try again.");
+        }
         break;
       }
       default: break;

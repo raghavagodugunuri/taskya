@@ -413,50 +413,81 @@ export default function TaskManager() {
       }
     }
 
-    // 2. Ensure user has a default group
+    // 2. Ensure user has a default group.
+    // Strategy: a default is any group with is_default=true OR id pattern mygroup_{user}_*.
+    // If user has groups but none is flagged → flag their OLDEST group as default (no duplicates).
+    // If user has zero groups → create "My Group".
     const isDefaultGroup = (g) => {
       const flag = g.is_default;
       if (flag === true || flag === 1 || flag === "true") return true;
       if (g.id && typeof g.id === "string" && g.id.startsWith(`mygroup_${uname}_`)) return true;
       return false;
     };
-    const hasDefault = loadedGroups.some(g => isDefaultGroup(g) && g.created_by === uname);
+
+    const userOwnedGroups = loadedGroups.filter(g => g.created_by === uname);
+    const hasDefault = userOwnedGroups.some(isDefaultGroup);
 
     if (!hasDefault) {
-      let recovered = null;
-      try {
-        const userGroups = await dbGet("taskya_groups", { created_by: uname });
-        recovered = (userGroups || []).find(isDefaultGroup);
-      } catch (e) { console.warn("default lookup failed:", e); }
-
-      if (recovered) {
+      if (userOwnedGroups.length > 0) {
+        // User has groups but none marked default — promote the oldest (smallest id by sort)
+        const oldest = [...userOwnedGroups].sort((a, b) => {
+          // sort by id; numeric/timestamp suffix tends to be smaller for older
+          return String(a.id).localeCompare(String(b.id));
+        })[0];
         try {
-          await dbInsert("taskya_group_members", { group_id: recovered.id, username: uname });
-        } catch {}
-        const gMembers = await dbGet("taskya_group_members", { group_id: recovered.id });
-        loadedGroups.push({
-          ...recovered,
-          members: (gMembers || []).map(m => m.username),
-          createdBy: recovered.created_by,
-          isDefault: true,
-        });
-      } else {
-        const gId = `mygroup_${uname}_${Date.now()}`;
-        try {
-          await dbInsert("taskya_groups", {
-            id: gId, name: "My Group", color: "#D97706",
-            created_by: uname, is_default: true,
-          });
-          await dbInsert("taskya_group_members", { group_id: gId, username: uname });
-          loadedGroups.push({
-            id: gId, name: "My Group", color: "#D97706",
-            createdBy: uname, isDefault: true, is_default: true,
-            created_by: uname, members: [uname],
-          });
+          await dbUpdate("taskya_groups", { is_default: true }, { id: oldest.id });
+          // patch local copy too
+          const idx = loadedGroups.findIndex(g => g.id === oldest.id);
+          if (idx >= 0) loadedGroups[idx] = { ...loadedGroups[idx], is_default: true, isDefault: true };
         } catch (e) {
-          console.error("Default group creation failed:", e);
-          // CRITICAL: bail out without touching state if we can't ensure a default group
-          throw new Error("Default group setup failed: " + e.message);
+          console.warn("Failed to promote oldest group to default:", e);
+          // Even if DB update fails, mark locally so UI shows it as default
+          const idx = loadedGroups.findIndex(g => g.id === oldest.id);
+          if (idx >= 0) loadedGroups[idx] = { ...loadedGroups[idx], isDefault: true };
+        }
+      } else {
+        // User has NO groups they created — check DB for orphan default (membership row missing)
+        let recovered = null;
+        try {
+          const userGroups = await dbGet("taskya_groups", { created_by: uname });
+          recovered = (userGroups || []).find(isDefaultGroup) || (userGroups || [])[0];
+        } catch (e) { console.warn("default lookup failed:", e); }
+
+        if (recovered) {
+          // Group exists in DB — re-add membership and load it
+          try {
+            await dbInsert("taskya_group_members", { group_id: recovered.id, username: uname });
+          } catch {}
+          // Make sure it's flagged as default in DB
+          if (!isDefaultGroup(recovered)) {
+            try { await dbUpdate("taskya_groups", { is_default: true }, { id: recovered.id }); } catch {}
+          }
+          const gMembers = await dbGet("taskya_group_members", { group_id: recovered.id });
+          loadedGroups.push({
+            ...recovered,
+            members: (gMembers || []).map(m => m.username),
+            createdBy: recovered.created_by,
+            isDefault: true,
+            is_default: true,
+          });
+        } else {
+          // Truly new user — create the default group
+          const gId = `mygroup_${uname}_${Date.now()}`;
+          try {
+            await dbInsert("taskya_groups", {
+              id: gId, name: "My Group", color: "#D97706",
+              created_by: uname, is_default: true,
+            });
+            await dbInsert("taskya_group_members", { group_id: gId, username: uname });
+            loadedGroups.push({
+              id: gId, name: "My Group", color: "#D97706",
+              createdBy: uname, isDefault: true, is_default: true,
+              created_by: uname, members: [uname],
+            });
+          } catch (e) {
+            console.error("Default group creation failed:", e);
+            throw new Error("Default group setup failed: " + e.message);
+          }
         }
       }
     }
@@ -579,8 +610,25 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     setTimeout(() => setGlobalToast(null), 3000);
   };
 
-  // Save notif settings to Supabase
+  // Save notif settings to Supabase. Also clear today's morning/evening dedup keys
+  // so that if the user just changed the time, the new time can still fire today.
   const saveNotifSettings = async (newSettings) => {
+    // Clear today's morning/evening dedup keys if those times were changed
+    try {
+      const NOTIF_FIRED_LS_KEY = `taskya_notif_fired_${userName}`;
+      const fired = JSON.parse(localStorage.getItem(NOTIF_FIRED_LS_KEY) || "{}");
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+      let dirty = false;
+      if (notifSettings.morning_time !== newSettings.morning_time) {
+        delete fired[`morning_${todayStr}`]; dirty = true;
+      }
+      if (notifSettings.evening_time !== newSettings.evening_time) {
+        delete fired[`evening_${todayStr}`]; dirty = true;
+      }
+      if (dirty) localStorage.setItem(NOTIF_FIRED_LS_KEY, JSON.stringify(fired));
+    } catch {}
+
     setNotifSettings(newSettings);
     try {
       await dbUpdate("taskya_users", { notification_settings: newSettings }, { username: userName });
@@ -644,17 +692,17 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       return !!fired[key];
     };
 
-    // Time match — wider window so we don't miss with imperfect interval alignment.
-    // Returns true if `now` is within the past TIME_MATCH_WINDOW minutes of `timeStr` AND we haven't fired yet.
-    const TIME_MATCH_WINDOW_MS = 5 * 60 * 1000; // 5 minute window
-    const matchesTime = (now, timeStr) => {
+    // Should fire today? Returns true if:
+    //   - timeStr is set
+    //   - current time has passed today's target time (any time after, no upper bound — catch-up)
+    //   - we haven't already fired today (caller checks dedup separately)
+    const shouldFireDailyAtTime = (now, timeStr) => {
       if (!timeStr) return false;
       const [h, m] = timeStr.split(":").map(Number);
+      if (isNaN(h) || isNaN(m)) return false;
       const target = new Date(now);
       target.setHours(h, m, 0, 0);
-      const diff = now - target;
-      // fire if we're between 0 and +TIME_MATCH_WINDOW_MS past the target time
-      return diff >= 0 && diff <= TIME_MATCH_WINDOW_MS;
+      return now >= target;
     };
 
     const subtractDuration = (dateMs, threshold) => {
@@ -693,8 +741,8 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
 
-      // Morning summary
-      if (notifSettings.morning_summary && matchesTime(now, notifSettings.morning_time)) {
+      // Morning summary — fires once per day after morning_time has passed
+      if (notifSettings.morning_summary && shouldFireDailyAtTime(now, notifSettings.morning_time)) {
         const key = `morning_${todayStr}`;
         if (!wasFired(key)) {
           markFired(key);
@@ -709,8 +757,8 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         }
       }
 
-      // Evening reminder
-      if (notifSettings.evening_reminder && matchesTime(now, notifSettings.evening_time)) {
+      // Evening reminder — fires once per day after evening_time has passed
+      if (notifSettings.evening_reminder && shouldFireDailyAtTime(now, notifSettings.evening_time)) {
         const key = `evening_${todayStr}`;
         if (!wasFired(key)) {
           markFired(key);

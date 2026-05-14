@@ -34,8 +34,11 @@ async function dbGet(table, filters = {}) {
 
 async function dbGetIn(table, col, values) {
   if (!values.length) return [];
-  const q = values.map(v => `${col}=eq.${encodeURIComponent(v)}`).join(",");
-  const url = `${SUPABASE_URL}/rest/v1/${table}?select=*&or=(${q})`;
+  // Use PostgREST's `in.(v1,v2,...)` operator — works correctly for any count, including 1.
+  // The previous `or=(...)` approach failed on single values because PostgREST's `or` parser
+  // requires multiple conditions and uses dot-notation, not equals-notation.
+  const encoded = values.map(v => encodeURIComponent(String(v))).join(",");
+  const url = `${SUPABASE_URL}/rest/v1/${table}?select=*&${col}=in.(${encoded})`;
   try {
     const res = await fetch(url, { headers: H() });
     if (!res.ok) {
@@ -45,7 +48,9 @@ async function dbGetIn(table, col, values) {
     }
     return res.json();
   } catch (e) {
-    console.error(`[dbGetIn ${table}] network/parse error:`, e.message);
+    if (!e.message?.startsWith("4") && !e.message?.startsWith("5")) {
+      console.error(`[dbGetIn ${table}] network/parse error:`, e.message);
+    }
     throw e;
   }
 }

@@ -741,7 +741,7 @@ export default function TaskManager() {
     notifSettings={notifSettings} setNotifSettings={setNotifSettings} />;
 }
 
-function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvitations, allTasks, setAllTasks, reloadData, notifSettings, setNotifSettings }) {
+function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvitations, allTasks, setAllTasks, reloadData, silentReload, notifSettings, setNotifSettings }) {
   const [page, setPage] = useState("dashboard");
   const [mounted, setMounted] = useState(false);
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
@@ -1244,7 +1244,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       <div style={{ paddingBottom: 90, minHeight: "100vh", background: "var(--bg)" }}>
         {page === "dashboard" && <Dashboard tasks={tasks} groups={groups.filter(g => g.members.includes(userName))} userName={userName} onLogout={onLogout} setPage={setPage} onOpenSettings={() => setPage("settings")} />}
         {page === "tasks" && <Tasks tasks={tasks} dispatch={dispatch} groups={groups.filter(g => g.members.includes(userName))} onLogout={onLogout} userName={userName} onOpenSettings={() => setPage("settings")} notifSettings={notifSettings} saveNotifSettings={saveNotifSettings} showGlobalToast={showGlobalToast} />}
-        {page === "groups" && <GroupsPage groups={groups} setGroups={setGroups} tasks={tasks} onLogout={onLogout} userName={userName} invitations={invitations} setInvitations={setInvitations} reloadData={reloadData} onOpenSettings={() => setPage("settings")} />}
+        {page === "groups" && <GroupsPage groups={groups} setGroups={setGroups} tasks={tasks} onLogout={onLogout} userName={userName} invitations={invitations} setInvitations={setInvitations} reloadData={reloadData} silentReload={silentReload} onOpenSettings={() => setPage("settings")} />}
         {page === "settings" && <SettingsPage userName={userName} notifSettings={notifSettings} saveNotifSettings={saveNotifSettings} notifPermission={notifPermission} setNotifPermission={setNotifPermission} onBack={() => setPage("dashboard")} showGlobalToast={showGlobalToast} allTasks={allTasks} />}
         {/* Rewards hidden for now */}
         {/* {page === "rewards" && <Rewards tasks={tasks} onLogout={onLogout} />} */}
@@ -2772,7 +2772,7 @@ function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, sho
 
 /* ═══════════════════════ GROUPS ═══════════════════════ */
 
-function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations, setInvitations, reloadData, onOpenSettings }) {
+function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations, setInvitations, reloadData, silentReload, onOpenSettings }) {
   const [showForm, setShowForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("#D97706");
@@ -2884,11 +2884,19 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
   const acceptInvite = async (invId) => {
     const inv = invitations.find(i => i.id === invId);
     if (!inv) return;
-    await dbInsert("taskya_group_members", { group_id: inv.groupId, username: userName });
-    await dbUpdate("taskya_invitations", { status: "accepted" }, { id: invId });
-    setInvitations(p => p.map(i => i.id === invId ? { ...i, status: "accepted" } : i));
-    if (reloadData) reloadData();
-    showInviteToast(`Joined ${inv.groupName}`, "green");
+    try {
+      await dbInsert("taskya_group_members", { group_id: inv.groupId, username: userName });
+      await dbUpdate("taskya_invitations", { status: "accepted" }, { id: invId });
+      setInvitations(p => p.map(i => i.id === invId ? { ...i, status: "accepted" } : i));
+      // Use silentReload (no spinner) so the user stays on the Groups page without flicker.
+      // Falls back to reloadData if silentReload isn't wired through (defensive).
+      if (silentReload) silentReload();
+      else if (reloadData) reloadData();
+      showInviteToast(`Joined ${inv.groupName}`, "green");
+    } catch (e) {
+      console.error("Accept invite failed:", e);
+      showInviteToast("Couldn't accept invite. Try again.", "red");
+    }
   };
 
   const rejectInvite = async (invId) => {

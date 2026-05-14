@@ -3,8 +3,8 @@ import ReactDOM from "react-dom";
 
 /* ───────────────────────── main ───────────────────────── */
 
-const SUPABASE_URL = "https://ocqbgkyqriyyiniulhbi.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9jcWJna3lxcml5eWluaXVsaGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1ODc2NzEsImV4cCI6MjA5MjE2MzY3MX0.ynBswgswMs1u3WOnuIogYJRf5ai-hoaZnbLwShgTgRM";
+const SUPABASE_URL = "https://nawumfcefkaumftfqigm.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hd3VtZmNlZmthdW1mdGZxaWdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0OTEyMDcsImV4cCI6MjA5MjA2NzIwN30.JHJg7kCCBtsbqMLwuKThkt2LZdgMSqzQV3TpVAL49g8";
 
 // ── Clean REST helpers — no npm package needed ────────────
 // All helpers log to console on failure so issues are debuggable in browser DevTools.

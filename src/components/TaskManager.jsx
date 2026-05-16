@@ -1248,11 +1248,20 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
   ];
 
   // #6 — Pull-to-refresh. Attached via addEventListener so we can preventDefault and
-  // beat the browser's native overscroll. React's onTouch* attrs are passive-by-default,
-  // which means preventDefault() inside them is silently ignored — that's why this
-  // uses a ref + useEffect to wire listeners manually with { passive: false }.
+  // beat the browser's native overscroll. CRITICAL: handlers read state via refs so we
+  // only mount listeners ONCE. (Previously the effect depended on `ptrPull`, which
+  // meant the listeners got torn down and re-attached on every drag frame — and the
+  // touchend that came after release fired on a now-removed listener, so nothing happened.)
   const appShellRef = useRef(null);
   const ptrRafRef = useRef(null);
+  const ptrPullRef = useRef(0);
+  const ptrRefreshingRef = useRef(false);
+  const silentReloadRef2 = useRef(silentReload);
+
+  // Keep refs in sync with state on every render
+  useEffect(() => { ptrPullRef.current = ptrPull; }, [ptrPull]);
+  useEffect(() => { ptrRefreshingRef.current = ptrRefreshing; }, [ptrRefreshing]);
+  useEffect(() => { silentReloadRef2.current = silentReload; }, [silentReload]);
 
   useEffect(() => {
     const el = appShellRef.current;
@@ -1261,29 +1270,26 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     const atTop = () => (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
 
     const onStart = (e) => {
-      if (!atTop() || ptrRefreshing) return;
+      if (!atTop() || ptrRefreshingRef.current) return;
       if (e.target.closest && e.target.closest('[data-no-ptr]')) return;
       ptrStartY.current = e.touches[0].clientY;
       ptrActive.current = true;
     };
 
     const onMove = (e) => {
-      if (!ptrActive.current || ptrRefreshing) return;
+      if (!ptrActive.current || ptrRefreshingRef.current) return;
       const dy = e.touches[0].clientY - ptrStartY.current;
       if (dy <= 0) {
-        if (ptrPull !== 0) setPtrPull(0);
+        if (ptrPullRef.current !== 0) setPtrPull(0);
         return;
       }
-      // If user has scrolled away from top mid-gesture, bail
       if (!atTop()) {
         ptrActive.current = false;
         setPtrPull(0);
         return;
       }
-      // Stops browser's native overscroll + scroll while we drag
       if (e.cancelable) e.preventDefault();
       const eased = Math.min(PTR_MAX, dy * 0.5);
-      // Throttle setState to one update per frame for smooth visuals
       if (ptrRafRef.current) cancelAnimationFrame(ptrRafRef.current);
       ptrRafRef.current = requestAnimationFrame(() => setPtrPull(eased));
     };
@@ -1295,13 +1301,15 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         cancelAnimationFrame(ptrRafRef.current);
         ptrRafRef.current = null;
       }
-      const pulled = ptrPull;
-      if (pulled >= PTR_THRESHOLD && !ptrRefreshing) {
+      // Read latest pull value from ref (state may not have flushed yet)
+      const pulled = ptrPullRef.current;
+      if (pulled >= PTR_THRESHOLD && !ptrRefreshingRef.current) {
         setPtrRefreshing(true);
         setPtrPull(PTR_THRESHOLD); // snap to threshold during refresh
         try {
-          if (silentReload) await silentReload();
-        } catch (e) { console.warn("Pull-to-refresh failed:", e); }
+          // Use ref so we always call the latest silentReload closure
+          if (silentReloadRef2.current) await silentReloadRef2.current();
+        } catch (err) { console.warn("Pull-to-refresh failed:", err); }
         setTimeout(() => {
           setPtrRefreshing(false);
           setPtrPull(0);
@@ -1311,7 +1319,6 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       }
     };
 
-    // passive:false on touchmove is the critical bit — lets preventDefault actually work
     el.addEventListener("touchstart",  onStart, { passive: true });
     el.addEventListener("touchmove",   onMove,  { passive: false });
     el.addEventListener("touchend",    onEnd,   { passive: true });
@@ -1323,8 +1330,8 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
       el.removeEventListener("touchcancel", onEnd);
       if (ptrRafRef.current) cancelAnimationFrame(ptrRafRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ptrPull, ptrRefreshing, silentReload]);
+    // Empty deps: mount listeners ONCE for the lifetime of AppShell
+  }, []);
 
   return (
     <div
@@ -1893,25 +1900,104 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
       minHeight: "calc(100vh - 90px)",
       background: "var(--bg)",
     }}>
-      <div className="fu" style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10 }} />
-          <h2 style={{ fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)", fontWeight: 400, letterSpacing: "-0.02em" }}>
+      <div className="fu" style={{
+        marginBottom: 16, display: "flex",
+        justifyContent: "space-between", alignItems: "center",
+        gap: 8, position: "relative",
+      }}>
+        {/* Logo + title — collapses to width 0 with fade+slide-left when search is open.
+            Buttons on the right remain anchored; only this block animates out of view. */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          overflow: "hidden",
+          maxWidth: searchOpen ? 0 : 400,
+          opacity: searchOpen ? 0 : 1,
+          transform: searchOpen ? "translateX(-12px)" : "translateX(0)",
+          transition: "max-width 0.28s cubic-bezier(0.32,0.72,0,1), opacity 0.22s ease, transform 0.28s cubic-bezier(0.32,0.72,0,1)",
+          flexShrink: 0,
+          pointerEvents: searchOpen ? "none" : "auto",
+        }}>
+          <img src={TASKYA_ICON} alt="TASKYA" style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0 }} />
+          <h2 style={{
+            fontFamily: "'Instrument Serif', serif", fontSize: "var(--font-title, 28px)",
+            fontWeight: 400, letterSpacing: "-0.02em", whiteSpace: "nowrap",
+          }}>
             TASKYA<span style={{ color: "var(--accent)" }}>.</span>
           </h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Search icon button — toggles inline search bar below the header.
-              Active state = highlighted when open OR when a query is set (filter is active). */}
+
+        {/* Inline search input — expands leftward to fill the freed space.
+            flex:1 with maxWidth transition lets it grow into whatever space the logo gives up. */}
+        <div style={{
+          flex: searchOpen ? 1 : 0,
+          maxWidth: searchOpen ? "100%" : 0,
+          overflow: "hidden",
+          transition: "max-width 0.28s cubic-bezier(0.32,0.72,0,1), flex 0.28s cubic-bezier(0.32,0.72,0,1)",
+          position: "relative",
+          minWidth: 0,
+        }}>
+          <div style={{ position: "relative", minWidth: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
+              position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
+              color: searchQuery ? "var(--accent)" : "var(--text2)",
+              pointerEvents: "none", transition: "color 0.15s ease",
+            }}>
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Escape") {
+                  setSearchOpen(false);
+                  setSearchQuery("");
+                }
+              }}
+              placeholder="Search title, description, group..."
+              style={{
+                width: "100%",
+                padding: "8px 32px 8px 32px",
+                border: "1.5px solid var(--border)", borderRadius: 100,
+                fontSize: 13, fontFamily: "inherit",
+                background: "var(--bg-card)", color: "var(--text)",
+                outline: "none",
+                minHeight: 36, boxSizing: "border-box",
+                opacity: searchOpen ? 1 : 0,
+                transition: "opacity 0.18s ease 0.05s, border-color 0.15s ease",
+                pointerEvents: searchOpen ? "auto" : "none",
+              }}
+              tabIndex={searchOpen ? 0 : -1}
+              aria-hidden={!searchOpen}
+              onFocus={e => e.target.style.borderColor = "var(--accent)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"}
+            />
+            {searchOpen && searchQuery && (
+              <button onClick={() => setSearchQuery("")} style={{
+                position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                width: 22, height: 22, borderRadius: "50%", border: "none",
+                background: "var(--bg)", color: "var(--text2)", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+              }} aria-label="Clear search">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right side buttons — stay anchored, never move */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          {/* Search icon button — toggles inline search bar that slides in within this row */}
           <button onClick={() => {
             if (searchOpen) {
-              // Closing — clear query so we don't leave a hidden filter active
               setSearchOpen(false);
               setSearchQuery("");
             } else {
-              // Opening — switch to View tab if user is elsewhere, then expand
               if (tab !== "view") setTab("view");
               setSearchOpen(true);
+              // Focus the input after the expand animation begins so the keyboard opens
+              setTimeout(() => searchInputRef.current && searchInputRef.current.focus(), 50);
             }
           }} style={{
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -1922,16 +2008,15 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
             cursor: "pointer", fontFamily: "inherit",
             transition: "all 0.15s ease",
             WebkitTapHighlightColor: "transparent",
+            flexShrink: 0,
           }}
           aria-label={searchOpen ? "Close search" : "Open search"}
           >
             {searchOpen && !searchQuery ? (
-              // X icon when open with no query (means tap-to-close)
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
               </svg>
             ) : (
-              // Magnifying glass otherwise (including when query is active — tap to close+clear)
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
@@ -2002,64 +2087,6 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
           {/* search + toggles (view tab only) */}
           {tab === "view" && (
             <>
-              {/* search box — only renders when icon is toggled open */}
-              {searchOpen && (
-                <div style={{
-                  position: "relative",
-                  marginBottom: 10,
-                  animation: "searchExpand 0.22s cubic-bezier(0.32, 0.72, 0, 1) both",
-                }}>
-                  <style>{`
-                    @keyframes searchExpand {
-                      from { opacity: 0; transform: translateY(-6px); max-height: 0; }
-                      to   { opacity: 1; transform: translateY(0);    max-height: 60px; }
-                    }
-                  `}</style>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
-                    position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-                    color: searchQuery ? "var(--accent)" : "var(--text2)",
-                    pointerEvents: "none", transition: "color 0.15s ease",
-                  }}>
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => {
-                      // ESC closes + clears (matches the X-button behavior)
-                      if (e.key === "Escape") {
-                        setSearchOpen(false);
-                        setSearchQuery("");
-                      }
-                    }}
-                    placeholder="Search by title, description, or group..."
-                    autoFocus
-                    style={{
-                      width: "100%", padding: "10px 36px 10px 36px",
-                      border: "1.5px solid var(--border)", borderRadius: 100,
-                      fontSize: 13, fontFamily: "inherit",
-                      background: "var(--bg-card)", color: "var(--text)",
-                      outline: "none", transition: "border-color 0.15s ease",
-                      minHeight: 40, boxSizing: "border-box",
-                    }}
-                    onFocus={e => e.target.style.borderColor = "var(--accent)"}
-                    onBlur={e => e.target.style.borderColor = "var(--border)"}
-                  />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery("")} style={{
-                      position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                      width: 24, height: 24, borderRadius: "50%", border: "none",
-                      background: "var(--bg)", color: "var(--text2)", cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      padding: 0,
-                    }} aria-label="Clear search">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                  )}
-                </div>
-              )}
 
               {/* count + toggles */}
               <div style={{

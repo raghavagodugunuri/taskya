@@ -1765,8 +1765,26 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
   const [timeFilter, setTimeFilter] = useState("all");
   const [toast, setToast] = useState(null);
   const [hideCompleted, setHideCompleted] = useState(false);
+  const [showCompletedOnly, setShowCompletedOnly] = useState(false); // #3 — show only completed
+  const [searchQuery, setSearchQuery] = useState(""); // #2 — suggestive search
   const [activeTask, setActiveTask] = useState(null); // task for activity sheet
   const [editingTask, setEditingTask] = useState(null); // task being edited
+
+  // Toggling one filter should reset the other (mutually exclusive)
+  const toggleHideCompleted = () => {
+    setHideCompleted(p => {
+      const next = !p;
+      if (next) setShowCompletedOnly(false);
+      return next;
+    });
+  };
+  const toggleShowCompletedOnly = () => {
+    setShowCompletedOnly(p => {
+      const next = !p;
+      if (next) setHideCompleted(false);
+      return next;
+    });
+  };
 
   const showToast = (message, type) => {
     setToast({ message, type });
@@ -1813,7 +1831,20 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
     let base = tasks;
     if (tab === "missed") base = tasks.filter(t => t.status === "missed");
     if (timeFilter !== "all") base = base.filter(t => t.time === timeFilter);
-    if (hideCompleted && tab !== "missed") base = base.filter(t => t.status !== "completed");
+    if (tab !== "missed") {
+      if (hideCompleted) base = base.filter(t => t.status !== "completed");
+      else if (showCompletedOnly) base = base.filter(t => t.status === "completed");
+    }
+    // Suggestive search — match title or description, case-insensitive
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      base = base.filter(t => {
+        const title = (t.title || "").toLowerCase();
+        const desc = (t.desc || t.description || "").toLowerCase();
+        const group = (t.group || "").toLowerCase();
+        return title.includes(q) || desc.includes(q) || group.includes(q);
+      });
+    }
     return [...base].sort(multiSort);
   };
 
@@ -1899,42 +1930,111 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
         <AddTaskForm dispatch={dispatch} groups={groups} setTab={setTab} defaultTime={timeFilter !== "all" ? timeFilter : ""} existingTasks={tasks} showToast={showToast} userName={userName} />
       ) : (
         <>
-          {/* hide completed toggle */}
+          {/* search + toggles (view tab only) */}
           {tab === "view" && (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              marginBottom: 12,
-            }}>
-              <span style={{ fontSize: 12, color: "var(--text2)", fontWeight: 500 }}>
-                {filtered.length} task{filtered.length !== 1 ? "s" : ""}
-              </span>
-              <button onClick={() => setHideCompleted(p => !p)} style={{
-                display: "flex", alignItems: "center", gap: 8, padding: "6px 12px",
-                border: "1px solid var(--border)", borderRadius: 100,
-                background: hideCompleted ? "var(--green-lt)" : "var(--bg-card)",
-                cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
-                color: hideCompleted ? "var(--green)" : "var(--text2)",
-                transition: "all 0.15s ease",
-              }}>
-                <div style={{
-                  width: 32, height: 18, borderRadius: 100, padding: 2,
-                  background: hideCompleted ? "var(--green)" : "var(--border)",
-                  transition: "background 0.2s ease",
-                  display: "flex", alignItems: "center",
+            <>
+              {/* search box */}
+              <div style={{ position: "relative", marginBottom: 10 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
+                  position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+                  color: searchQuery ? "var(--accent)" : "var(--text2)",
+                  pointerEvents: "none", transition: "color 0.15s ease",
                 }}>
-                  <div style={{
-                    width: 14, height: 14, borderRadius: "50%", background: "white",
-                    transition: "transform 0.2s ease",
-                    transform: hideCompleted ? "translateX(14px)" : "translateX(0)",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                  }} />
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Search tasks by title, description, or group..."
+                  style={{
+                    width: "100%", padding: "10px 36px 10px 36px",
+                    border: "1.5px solid var(--border)", borderRadius: 100,
+                    fontSize: 13, fontFamily: "inherit",
+                    background: "var(--bg-card)", color: "var(--text)",
+                    outline: "none", transition: "border-color 0.15s ease",
+                    minHeight: 40, boxSizing: "border-box",
+                  }}
+                  onFocus={e => e.target.style.borderColor = "var(--accent)"}
+                  onBlur={e => e.target.style.borderColor = "var(--border)"}
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery("")} style={{
+                    position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                    width: 24, height: 24, borderRadius: "50%", border: "none",
+                    background: "var(--bg)", color: "var(--text2)", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: 0,
+                  }} aria-label="Clear search">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                )}
+              </div>
+
+              {/* count + toggles */}
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                gap: 8, marginBottom: 12, flexWrap: "wrap",
+              }}>
+                <span style={{ fontSize: 12, color: "var(--text2)", fontWeight: 500 }}>
+                  {filtered.length} task{filtered.length !== 1 ? "s" : ""}
+                  {searchQuery && <span style={{ color: "var(--accent)" }}> matching "{searchQuery.length > 18 ? searchQuery.slice(0,18) + "…" : searchQuery}"</span>}
+                </span>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {/* Hide done */}
+                  <button onClick={toggleHideCompleted} style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
+                    border: "1px solid var(--border)", borderRadius: 100,
+                    background: hideCompleted ? "var(--green-lt)" : "var(--bg-card)",
+                    cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
+                    color: hideCompleted ? "var(--green)" : "var(--text2)",
+                    transition: "all 0.15s ease",
+                  }}>
+                    <div style={{
+                      width: 26, height: 15, borderRadius: 100, padding: 2,
+                      background: hideCompleted ? "var(--green)" : "var(--border)",
+                      transition: "background 0.2s ease",
+                      display: "flex", alignItems: "center",
+                    }}>
+                      <div style={{
+                        width: 11, height: 11, borderRadius: "50%", background: "white",
+                        transition: "transform 0.2s ease",
+                        transform: hideCompleted ? "translateX(11px)" : "translateX(0)",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                      }} />
+                    </div>
+                    Hide done
+                  </button>
+                  {/* Show done only */}
+                  <button onClick={toggleShowCompletedOnly} style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "6px 10px",
+                    border: "1px solid var(--border)", borderRadius: 100,
+                    background: showCompletedOnly ? "var(--accent-lt)" : "var(--bg-card)",
+                    cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
+                    color: showCompletedOnly ? "var(--accent)" : "var(--text2)",
+                    transition: "all 0.15s ease",
+                  }}>
+                    <div style={{
+                      width: 26, height: 15, borderRadius: 100, padding: 2,
+                      background: showCompletedOnly ? "var(--accent)" : "var(--border)",
+                      transition: "background 0.2s ease",
+                      display: "flex", alignItems: "center",
+                    }}>
+                      <div style={{
+                        width: 11, height: 11, borderRadius: "50%", background: "white",
+                        transition: "transform 0.2s ease",
+                        transform: showCompletedOnly ? "translateX(11px)" : "translateX(0)",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                      }} />
+                    </div>
+                    Show done
+                  </button>
                 </div>
-                Hide done
-              </button>
-            </div>
+              </div>
+            </>
           )}
           {filtered.length === 0 ? (
-            <EmptyState msg={emptyMsg} />
+            <EmptyState msg={searchQuery ? `No tasks match "${searchQuery}"` : emptyMsg} />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {filtered.map((t, i) => (
@@ -2038,6 +2138,29 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
 
             {/* timeline */}
             <div style={{ padding: "20px 20px calc(24px + env(safe-area-inset-bottom, 0px))" }}>
+              {/* description */}
+              {(() => {
+                const desc = activeTask.desc || activeTask.description || "";
+                if (!desc.trim()) return null;
+                return (
+                  <div style={{
+                    marginBottom: 16, padding: "12px 14px",
+                    background: "var(--bg)", borderRadius: "var(--rs)",
+                    border: "1px solid var(--border)",
+                  }}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, color: "var(--text2)",
+                      textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6,
+                    }}>Description</div>
+                    <div style={{
+                      fontSize: 13, color: "var(--text)", lineHeight: 1.5,
+                      wordBreak: "break-word", overflowWrap: "anywhere",
+                      whiteSpace: "pre-wrap",
+                    }}>{desc}</div>
+                  </div>
+                );
+              })()}
+
               {/* notify_before override */}
               {activeTask.status === "pending" && (
                 <div style={{ marginBottom: 20, padding: "12px 14px", background: "var(--bg)", borderRadius: "var(--rs)", border: "1px solid var(--border)" }}>

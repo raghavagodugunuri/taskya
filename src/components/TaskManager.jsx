@@ -1247,58 +1247,89 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     { id: "groups", label: "Groups", icon: I.groups, iconActive: I.groupsFill },
   ];
 
-  // #6 — Pull-to-refresh handlers. Active only when scroll is at top.
-  const onPtrTouchStart = (e) => {
-    // Only start tracking if we're at the very top of the page
-    if ((window.scrollY || document.documentElement.scrollTop || 0) > 0) return;
-    if (ptrRefreshing) return;
-    // Don't intercept touches inside scrollable popups (bottom sheets, modals, members popup)
-    if (e.target.closest && e.target.closest('[data-no-ptr]')) return;
-    ptrStartY.current = e.touches[0].clientY;
-    ptrActive.current = true;
-  };
+  // #6 — Pull-to-refresh. Attached via addEventListener so we can preventDefault and
+  // beat the browser's native overscroll. React's onTouch* attrs are passive-by-default,
+  // which means preventDefault() inside them is silently ignored — that's why this
+  // uses a ref + useEffect to wire listeners manually with { passive: false }.
+  const appShellRef = useRef(null);
+  const ptrRafRef = useRef(null);
 
-  const onPtrTouchMove = (e) => {
-    if (!ptrActive.current || ptrRefreshing) return;
-    const dy = e.touches[0].clientY - ptrStartY.current;
-    if (dy <= 0) {
-      // Pulling up — not a refresh gesture
-      if (ptrPull !== 0) setPtrPull(0);
-      return;
-    }
-    // Apply easing: pull resistance grows as user drags further
-    const eased = Math.min(PTR_MAX, dy * 0.5);
-    setPtrPull(eased);
-  };
+  useEffect(() => {
+    const el = appShellRef.current;
+    if (!el) return;
 
-  const onPtrTouchEnd = async () => {
-    if (!ptrActive.current) return;
-    ptrActive.current = false;
-    const pulled = ptrPull;
-    if (pulled >= PTR_THRESHOLD && !ptrRefreshing) {
-      setPtrRefreshing(true);
-      setPtrPull(PTR_THRESHOLD); // snap to threshold position during refresh
-      try {
-        if (silentReload) await silentReload();
-      } catch (e) { console.warn("Pull-to-refresh failed:", e); }
-      // Show the indicator briefly so user sees feedback
-      setTimeout(() => {
-        setPtrRefreshing(false);
+    const atTop = () => (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+
+    const onStart = (e) => {
+      if (!atTop() || ptrRefreshing) return;
+      if (e.target.closest && e.target.closest('[data-no-ptr]')) return;
+      ptrStartY.current = e.touches[0].clientY;
+      ptrActive.current = true;
+    };
+
+    const onMove = (e) => {
+      if (!ptrActive.current || ptrRefreshing) return;
+      const dy = e.touches[0].clientY - ptrStartY.current;
+      if (dy <= 0) {
+        if (ptrPull !== 0) setPtrPull(0);
+        return;
+      }
+      // If user has scrolled away from top mid-gesture, bail
+      if (!atTop()) {
+        ptrActive.current = false;
         setPtrPull(0);
-      }, 600);
-    } else {
-      // Didn't pull far enough → snap back
-      setPtrPull(0);
-    }
-  };
+        return;
+      }
+      // Stops browser's native overscroll + scroll while we drag
+      if (e.cancelable) e.preventDefault();
+      const eased = Math.min(PTR_MAX, dy * 0.5);
+      // Throttle setState to one update per frame for smooth visuals
+      if (ptrRafRef.current) cancelAnimationFrame(ptrRafRef.current);
+      ptrRafRef.current = requestAnimationFrame(() => setPtrPull(eased));
+    };
+
+    const onEnd = async () => {
+      if (!ptrActive.current) return;
+      ptrActive.current = false;
+      if (ptrRafRef.current) {
+        cancelAnimationFrame(ptrRafRef.current);
+        ptrRafRef.current = null;
+      }
+      const pulled = ptrPull;
+      if (pulled >= PTR_THRESHOLD && !ptrRefreshing) {
+        setPtrRefreshing(true);
+        setPtrPull(PTR_THRESHOLD); // snap to threshold during refresh
+        try {
+          if (silentReload) await silentReload();
+        } catch (e) { console.warn("Pull-to-refresh failed:", e); }
+        setTimeout(() => {
+          setPtrRefreshing(false);
+          setPtrPull(0);
+        }, 500);
+      } else {
+        setPtrPull(0);
+      }
+    };
+
+    // passive:false on touchmove is the critical bit — lets preventDefault actually work
+    el.addEventListener("touchstart",  onStart, { passive: true });
+    el.addEventListener("touchmove",   onMove,  { passive: false });
+    el.addEventListener("touchend",    onEnd,   { passive: true });
+    el.addEventListener("touchcancel", onEnd,   { passive: true });
+    return () => {
+      el.removeEventListener("touchstart",  onStart);
+      el.removeEventListener("touchmove",   onMove);
+      el.removeEventListener("touchend",    onEnd);
+      el.removeEventListener("touchcancel", onEnd);
+      if (ptrRafRef.current) cancelAnimationFrame(ptrRafRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ptrPull, ptrRefreshing, silentReload]);
 
   return (
     <div
+      ref={appShellRef}
       className="app-shell"
-      onTouchStart={onPtrTouchStart}
-      onTouchMove={onPtrTouchMove}
-      onTouchEnd={onPtrTouchEnd}
-      onTouchCancel={onPtrTouchEnd}
       style={{
         fontFamily: "'DM Sans', sans-serif",
         background: "var(--bg)",
@@ -1377,7 +1408,7 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         }}
         *{box-sizing:border-box;margin:0;padding:0;}
         ::-webkit-scrollbar{display:none;}
-        html,body{overflow-x:hidden;-webkit-text-size-adjust:100%;}
+        html,body{overflow-x:hidden;-webkit-text-size-adjust:100%;overscroll-behavior-y:contain;}
         body{background:var(--bg);min-height:100vh;}
         @media(min-width:768px){
           body{
@@ -1767,6 +1798,8 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
   const [hideCompleted, setHideCompleted] = useState(false);
   const [showCompletedOnly, setShowCompletedOnly] = useState(false); // #3 — show only completed
   const [searchQuery, setSearchQuery] = useState(""); // #2 — suggestive search
+  const [searchOpen, setSearchOpen] = useState(false); // header search icon toggle
+  const searchInputRef = useRef(null);
   const [activeTask, setActiveTask] = useState(null); // task for activity sheet
   const [editingTask, setEditingTask] = useState(null); // task being edited
 
@@ -1868,6 +1901,42 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
           </h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Search icon button — toggles inline search bar below the header.
+              Active state = highlighted when open OR when a query is set (filter is active). */}
+          <button onClick={() => {
+            if (searchOpen) {
+              // Closing — clear query so we don't leave a hidden filter active
+              setSearchOpen(false);
+              setSearchQuery("");
+            } else {
+              // Opening — switch to View tab if user is elsewhere, then expand
+              if (tab !== "view") setTab("view");
+              setSearchOpen(true);
+            }
+          }} style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 32, height: 32, borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: (searchOpen || searchQuery) ? "var(--accent-lt)" : "var(--bg-card)",
+            color: (searchOpen || searchQuery) ? "var(--accent)" : "var(--text2)",
+            cursor: "pointer", fontFamily: "inherit",
+            transition: "all 0.15s ease",
+            WebkitTapHighlightColor: "transparent",
+          }}
+          aria-label={searchOpen ? "Close search" : "Open search"}
+          >
+            {searchOpen && !searchQuery ? (
+              // X icon when open with no query (means tap-to-close)
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            ) : (
+              // Magnifying glass otherwise (including when query is active — tap to close+clear)
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            )}
+          </button>
           <GearBtn onOpenSettings={onOpenSettings} />
           <LogoutBtn onLogout={onLogout} />
         </div>
@@ -1933,43 +2002,64 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
           {/* search + toggles (view tab only) */}
           {tab === "view" && (
             <>
-              {/* search box */}
-              <div style={{ position: "relative", marginBottom: 10 }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
-                  position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-                  color: searchQuery ? "var(--accent)" : "var(--text2)",
-                  pointerEvents: "none", transition: "color 0.15s ease",
+              {/* search box — only renders when icon is toggled open */}
+              {searchOpen && (
+                <div style={{
+                  position: "relative",
+                  marginBottom: 10,
+                  animation: "searchExpand 0.22s cubic-bezier(0.32, 0.72, 0, 1) both",
                 }}>
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search tasks by title, description, or group..."
-                  style={{
-                    width: "100%", padding: "10px 36px 10px 36px",
-                    border: "1.5px solid var(--border)", borderRadius: 100,
-                    fontSize: 13, fontFamily: "inherit",
-                    background: "var(--bg-card)", color: "var(--text)",
-                    outline: "none", transition: "border-color 0.15s ease",
-                    minHeight: 40, boxSizing: "border-box",
-                  }}
-                  onFocus={e => e.target.style.borderColor = "var(--accent)"}
-                  onBlur={e => e.target.style.borderColor = "var(--border)"}
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} style={{
-                    position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
-                    width: 24, height: 24, borderRadius: "50%", border: "none",
-                    background: "var(--bg)", color: "var(--text2)", cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    padding: 0,
-                  }} aria-label="Clear search">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                )}
-              </div>
+                  <style>{`
+                    @keyframes searchExpand {
+                      from { opacity: 0; transform: translateY(-6px); max-height: 0; }
+                      to   { opacity: 1; transform: translateY(0);    max-height: 60px; }
+                    }
+                  `}</style>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{
+                    position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+                    color: searchQuery ? "var(--accent)" : "var(--text2)",
+                    pointerEvents: "none", transition: "color 0.15s ease",
+                  }}>
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => {
+                      // ESC closes + clears (matches the X-button behavior)
+                      if (e.key === "Escape") {
+                        setSearchOpen(false);
+                        setSearchQuery("");
+                      }
+                    }}
+                    placeholder="Search by title, description, or group..."
+                    autoFocus
+                    style={{
+                      width: "100%", padding: "10px 36px 10px 36px",
+                      border: "1.5px solid var(--border)", borderRadius: 100,
+                      fontSize: 13, fontFamily: "inherit",
+                      background: "var(--bg-card)", color: "var(--text)",
+                      outline: "none", transition: "border-color 0.15s ease",
+                      minHeight: 40, boxSizing: "border-box",
+                    }}
+                    onFocus={e => e.target.style.borderColor = "var(--accent)"}
+                    onBlur={e => e.target.style.borderColor = "var(--border)"}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => setSearchQuery("")} style={{
+                      position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                      width: 24, height: 24, borderRadius: "50%", border: "none",
+                      background: "var(--bg)", color: "var(--text2)", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: 0,
+                    }} aria-label="Clear search">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* count + toggles */}
               <div style={{

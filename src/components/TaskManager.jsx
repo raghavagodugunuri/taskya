@@ -427,7 +427,22 @@ const DEFAULT_NOTIF_SETTINGS = {
   evening_time: "18:00",
   default_pre_due: "1h",
   browser_permission_granted: false,
+  // #4 — auto-delete completed tasks after this duration.
+  // Values: "none" (default), "day", "week", "month", "quarter", "year"
+  auto_delete_completed: "none",
 };
+
+// Convert auto_delete_completed setting to ms duration. Returns null for "none".
+function autoDeleteDurationMs(setting) {
+  switch (setting) {
+    case "day":     return 24 * 60 * 60 * 1000;
+    case "week":    return 7 * 24 * 60 * 60 * 1000;
+    case "month":   return 30 * 24 * 60 * 60 * 1000;
+    case "quarter": return 90 * 24 * 60 * 60 * 1000;
+    case "year":    return 365 * 24 * 60 * 60 * 1000;
+    default:        return null;
+  }
+}
 
 export default function TaskManager() {
   const [loggedIn, setLoggedIn] = useState(() => readLS("taskya_loggedIn", false));
@@ -750,6 +765,14 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
   );
   const [globalToast, setGlobalToast] = useState(null);
   const firedNotifRef = useRef({});
+
+  // #6 — Pull-to-refresh state
+  const ptrStartY = useRef(0);
+  const ptrActive = useRef(false);
+  const [ptrPull, setPtrPull] = useState(0);     // current drag distance in px (0 if not pulling)
+  const [ptrRefreshing, setPtrRefreshing] = useState(false);
+  const PTR_THRESHOLD = 70; // px to trigger
+  const PTR_MAX = 120;       // max visual pull
 
   // ── Guided tour state ──
   const [tourStep, setTourStep] = useState(null); // null = not active
@@ -1133,6 +1156,52 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
         }
         break;
       }
+      case "UPDATE_TASK": {
+        // Edit any combination of fields. action.patch = { title?, desc?, priority?, group?, groupId?, time?, dueDate?, dueTime? }
+        let target = null;
+        setAllTasks(prev => {
+          target = prev.find(t => t.id === action.id);
+          return prev;
+        });
+        if (!target) break;
+        const patch = action.patch || {};
+        // Build activity entry describing what changed
+        const changes = [];
+        if (patch.title !== undefined && patch.title !== target.title) changes.push("title");
+        if (patch.desc !== undefined && (patch.desc || "") !== (target.desc || "")) changes.push("description");
+        if (patch.priority !== undefined && patch.priority !== target.priority) changes.push("priority");
+        if (patch.group !== undefined && patch.group !== target.group) changes.push("group");
+        if (patch.time !== undefined && patch.time !== target.time) changes.push("type");
+        const dueChanged = (patch.dueDate !== undefined && patch.dueDate !== target.dueDate)
+          || (patch.dueTime !== undefined && patch.dueTime !== target.dueTime);
+        if (dueChanged) changes.push("due");
+        if (changes.length === 0) break; // nothing actually changed
+        const activity = [...(target.activity || []), { type: "edited", by: userName, at: nowTs, changes }];
+        const updated = { ...target, ...patch, activity };
+        // If due changed, also clear missed status and mark pending
+        if (dueChanged) {
+          updated.status = "pending";
+          updated.rescheduled = true;
+        }
+        const dbPatch = { activity };
+        if (patch.title !== undefined) dbPatch.title = patch.title;
+        if (patch.desc !== undefined) dbPatch.description = patch.desc;
+        if (patch.priority !== undefined) dbPatch.priority = patch.priority;
+        if (patch.group !== undefined) dbPatch.group_name = patch.group;
+        if (patch.groupId !== undefined) dbPatch.group_id = patch.groupId;
+        if (patch.time !== undefined) dbPatch.time = patch.time;
+        if (patch.dueDate !== undefined) dbPatch.due_date = patch.dueDate || null;
+        if (patch.dueTime !== undefined) dbPatch.due_time = patch.dueTime || null;
+        if (dueChanged) { dbPatch.status = "pending"; dbPatch.rescheduled = true; }
+        try {
+          await dbUpdate("taskya_tasks", dbPatch, { id: target.id });
+          setAllTasks(prev => prev.map(t => t.id === target.id ? updated : t));
+        } catch (e) {
+          console.error("UPDATE_TASK failed:", e);
+          alert("Couldn't update task. Please try again.");
+        }
+        break;
+      }
       default: break;
     }
   };
@@ -1145,22 +1214,133 @@ function AppShell({ userName, onLogout, groups, setGroups, invitations, setInvit
     // eslint-disable-next-line
   }, []);
 
+  // #4 — Auto-delete completed tasks older than the configured duration.
+  // Sweep runs every 5 minutes and on settings/tasks change. Deletes from DB then local state.
+  useEffect(() => {
+    const setting = notifSettings.auto_delete_completed;
+    const cutoffMs = autoDeleteDurationMs(setting);
+    if (!cutoffMs) return; // "none" → never delete
+    const sweep = async () => {
+      const now = Date.now();
+      const toDelete = allTasks.filter(t =>
+        t.status === "completed" && t.completedAt && (now - t.completedAt) > cutoffMs
+      );
+      if (toDelete.length === 0) return;
+      for (const t of toDelete) {
+        try {
+          await dbDelete("taskya_tasks", { id: t.id });
+        } catch (e) { console.warn("Auto-delete failed for", t.id, e); }
+      }
+      // Update local state in one pass after DB sweep
+      const deletedIds = new Set(toDelete.map(t => t.id));
+      setAllTasks(prev => prev.filter(t => !deletedIds.has(t.id)));
+    };
+    sweep(); // run immediately
+    const iv = setInterval(sweep, 5 * 60 * 1000); // every 5 min
+    return () => clearInterval(iv);
+    // eslint-disable-next-line
+  }, [notifSettings.auto_delete_completed, allTasks.length]);
+
   const navItems = [
     { id: "dashboard", label: "Home", icon: I.dashboard, iconActive: I.dashboardFill },
     { id: "tasks", label: "Tasks", icon: I.tasks, iconActive: I.tasksFill },
     { id: "groups", label: "Groups", icon: I.groups, iconActive: I.groupsFill },
   ];
 
+  // #6 — Pull-to-refresh handlers. Active only when scroll is at top.
+  const onPtrTouchStart = (e) => {
+    // Only start tracking if we're at the very top of the page
+    if ((window.scrollY || document.documentElement.scrollTop || 0) > 0) return;
+    if (ptrRefreshing) return;
+    // Don't intercept touches inside scrollable popups (bottom sheets, modals, members popup)
+    if (e.target.closest && e.target.closest('[data-no-ptr]')) return;
+    ptrStartY.current = e.touches[0].clientY;
+    ptrActive.current = true;
+  };
+
+  const onPtrTouchMove = (e) => {
+    if (!ptrActive.current || ptrRefreshing) return;
+    const dy = e.touches[0].clientY - ptrStartY.current;
+    if (dy <= 0) {
+      // Pulling up — not a refresh gesture
+      if (ptrPull !== 0) setPtrPull(0);
+      return;
+    }
+    // Apply easing: pull resistance grows as user drags further
+    const eased = Math.min(PTR_MAX, dy * 0.5);
+    setPtrPull(eased);
+  };
+
+  const onPtrTouchEnd = async () => {
+    if (!ptrActive.current) return;
+    ptrActive.current = false;
+    const pulled = ptrPull;
+    if (pulled >= PTR_THRESHOLD && !ptrRefreshing) {
+      setPtrRefreshing(true);
+      setPtrPull(PTR_THRESHOLD); // snap to threshold position during refresh
+      try {
+        if (silentReload) await silentReload();
+      } catch (e) { console.warn("Pull-to-refresh failed:", e); }
+      // Show the indicator briefly so user sees feedback
+      setTimeout(() => {
+        setPtrRefreshing(false);
+        setPtrPull(0);
+      }, 600);
+    } else {
+      // Didn't pull far enough → snap back
+      setPtrPull(0);
+    }
+  };
+
   return (
-    <div className="app-shell" style={{
-      fontFamily: "'DM Sans', sans-serif",
-      background: "var(--bg)",
-      color: "var(--text)",
-      width: "100%", maxWidth: "var(--app-max, 480px)", minHeight: "100vh",
-      margin: "0 auto", position: "relative",
-      opacity: mounted ? 1 : 0, transition: "opacity 0.4s ease",
-      overflowX: "hidden",
-    }}>
+    <div
+      className="app-shell"
+      onTouchStart={onPtrTouchStart}
+      onTouchMove={onPtrTouchMove}
+      onTouchEnd={onPtrTouchEnd}
+      onTouchCancel={onPtrTouchEnd}
+      style={{
+        fontFamily: "'DM Sans', sans-serif",
+        background: "var(--bg)",
+        color: "var(--text)",
+        width: "100%", maxWidth: "var(--app-max, 480px)", minHeight: "100vh",
+        margin: "0 auto", position: "relative",
+        opacity: mounted ? 1 : 0, transition: "opacity 0.4s ease",
+        overflowX: "hidden",
+        transform: ptrPull > 0 ? `translateY(${ptrPull}px)` : "none",
+        transition: ptrActive.current
+          ? "opacity 0.4s ease"
+          : "opacity 0.4s ease, transform 0.25s cubic-bezier(0.32, 0.72, 0, 1)",
+      }}>
+      {/* Pull-to-refresh indicator — appears above content as user drags */}
+      {(ptrPull > 0 || ptrRefreshing) && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0,
+          height: ptrPull, display: "flex", alignItems: "center", justifyContent: "center",
+          transform: `translateY(-${ptrPull}px)`,
+          pointerEvents: "none",
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: "50%",
+            background: "var(--bg-card)",
+            border: "1px solid var(--border)",
+            boxShadow: "0 2px 8px rgba(28,25,23,0.12)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            opacity: Math.min(1, ptrPull / PTR_THRESHOLD),
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{
+              transform: ptrRefreshing
+                ? "rotate(0deg)"
+                : `rotate(${Math.min(360, ptrPull * 4)}deg)`,
+              animation: ptrRefreshing ? "spin 0.8s linear infinite" : "none",
+              transition: ptrRefreshing ? "none" : "transform 0.05s linear",
+            }}>
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+            </svg>
+          </div>
+        </div>
+      )}
       <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       <style>{`
         :root {
@@ -1586,6 +1766,7 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
   const [toast, setToast] = useState(null);
   const [hideCompleted, setHideCompleted] = useState(false);
   const [activeTask, setActiveTask] = useState(null); // task for activity sheet
+  const [editingTask, setEditingTask] = useState(null); // task being edited
 
   const showToast = (message, type) => {
     setToast({ message, type });
@@ -1768,9 +1949,24 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
       {/* toast */}
       {toast && <Toast message={toast.message} type={toast.type} />}
 
+      {/* edit task popup */}
+      {editingTask && (
+        <EditTaskPopup
+          task={editingTask}
+          groups={groups}
+          userName={userName}
+          onSave={(patch) => {
+            dispatch({ type: "UPDATE_TASK", id: editingTask.id, patch });
+            showToast("Task updated", "green");
+            setEditingTask(null);
+          }}
+          onCancel={() => setEditingTask(null)}
+        />
+      )}
+
       {/* ── activity bottom sheet – rendered here so position:fixed is never clipped ── */}
       {activeTask && (
-        <div style={{
+        <div data-no-ptr style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
           background: "rgba(0,0,0,0.4)", zIndex: 300,
           display: "flex", alignItems: "flex-end", justifyContent: "center",
@@ -1813,9 +2009,31 @@ function Tasks({ tasks, dispatch, groups, onLogout, userName, onOpenSettings, no
               </button>
               <h4 style={{
                 fontSize: 18, fontWeight: 700, margin: 0,
-                maxWidth: "70%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                textAlign: "center",
+                maxWidth: "60%",
+                wordBreak: "break-word", overflowWrap: "anywhere",
+                lineHeight: 1.3, textAlign: "center",
               }}>{activeTask.title}</h4>
+              {/* Edit button — opens edit popup. Hidden for completed tasks. */}
+              {activeTask.status !== "completed" && (
+                <button onClick={() => { setEditingTask(activeTask); setActiveTask(null); }} style={{
+                  position: "absolute", top: "50%", right: 14, transform: "translateY(-50%)",
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "7px 12px", borderRadius: 100,
+                  background: "var(--bg)", border: "1px solid var(--border)",
+                  cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 11, fontWeight: 600, color: "var(--text2)",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--accent-lt)"; e.currentTarget.style.color = "var(--accent)"; e.currentTarget.style.borderColor = "var(--accent)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--bg)"; e.currentTarget.style.color = "var(--text2)"; e.currentTarget.style.borderColor = "var(--border)"; }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit
+                </button>
+              )}
             </div>
 
             {/* timeline */}
@@ -2044,18 +2262,6 @@ function TaskCard({ task, dispatch, delay, showToast, userName, groups, onOpenAc
 
           {/* action buttons */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0, alignItems: "center", marginTop: 1 }} onClick={e => e.stopPropagation()}>
-            {!isDone && (
-              <button onClick={(e) => { e.stopPropagation(); setShowReschedule(true); }} style={{
-                background: "none", border: "none", color: "var(--text2)", cursor: "pointer",
-                padding: 3, borderRadius: 6, transition: "color 0.15s ease",
-                opacity: 0.5,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.color = "var(--accent)"; }}
-              onMouseLeave={e => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.color = "var(--text2)"; }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-              </button>
-            )}
             <button onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(true); }} style={{
               background: "none", border: "none", color: isMissed ? "rgba(220,38,38,0.3)" : "var(--border)", cursor: "pointer",
               padding: 3, borderRadius: 6, transition: "color 0.15s ease",
@@ -2213,6 +2419,7 @@ function ActivityTimeline({ activity }) {
     completed:  { label: "Finished by",   color: "var(--green)",  bg: "var(--green-lt)",  icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> },
     reopened:   { label: "Reopened by",   color: "var(--text2)",  bg: "var(--bg)",        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 009 9 9.75 9.75 0 006.74-2.74L21 16"/><path d="M21 22v-6h-6"/><path d="M21 12a9 9 0 00-9-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M8 8H3V3"/></svg> },
     missed:     { label: "Marked missed", color: "var(--red)",    bg: "var(--red-lt)",    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> },
+    edited:     { label: "Edited by",     color: "var(--purple)", bg: "var(--blue-lt)",   icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> },
   };
 
   return (
@@ -2238,6 +2445,11 @@ function ActivityTimeline({ activity }) {
                 New due: {a.dueDate}{a.dueTime ? ` at ${a.dueTime}` : ""}
               </div>
             )}
+            {a.type === "edited" && Array.isArray(a.changes) && a.changes.length > 0 && (
+              <div style={{ fontSize: 12, color: "var(--text2)", marginTop: 4 }}>
+                Changed: {a.changes.join(", ")}
+              </div>
+            )}
           </div>
         );
       })}
@@ -2251,7 +2463,7 @@ function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, o
   useEffect(() => { setMounted(true); }, []);
 
   const overlay = (
-    <div style={{
+    <div data-no-ptr style={{
       position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
       background: "rgba(28,25,23,0.55)",
       display: "flex", alignItems: "center", justifyContent: "center",
@@ -2299,6 +2511,189 @@ function ConfirmPopup({ title, message, confirmLabel, confirmColor, onConfirm, o
   if (!mounted || typeof document === "undefined") return null;
   return ReactDOM.createPortal(overlay, document.body);
 }
+
+/* ─── EditTaskPopup — unified portal modal for editing all task fields ─── */
+function EditTaskPopup({ task, groups, userName, onSave, onCancel }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const [title, setTitle] = useState(task.title || "");
+  const [desc, setDesc] = useState(task.desc || task.description || "");
+  const [priority, setPriority] = useState(task.priority || "medium");
+  const [group, setGroup] = useState(task.group || "");
+  const [time, setTime] = useState(task.time || "custom");
+  const [dueDate, setDueDate] = useState(task.dueDate || "");
+  const [dueTime, setDueTime] = useState(task.dueTime || "");
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = () => {
+    setError("");
+    if (!title.trim()) { setError("Title is required"); return; }
+    if (!group) { setError("Select a group"); return; }
+    setShowConfirm(true);
+  };
+
+  const doSave = () => {
+    setShowConfirm(false);
+    const selectedGroup = groups.find(g => g.name === group);
+    onSave({
+      title: title.trim(),
+      desc: desc,
+      priority,
+      group,
+      groupId: selectedGroup?.id,
+      time,
+      dueDate: dueDate || null,
+      dueTime: dueTime || null,
+    });
+  };
+
+  const fld = {
+    width: "100%", padding: "11px 14px", border: "1.5px solid var(--border)",
+    borderRadius: "var(--rs)", fontSize: 14, fontFamily: "inherit",
+    background: "var(--bg)", color: "var(--text)", outline: "none",
+    boxSizing: "border-box", WebkitAppearance: "none",
+    minHeight: 44,
+  };
+  const lbl = { fontSize: 10, fontWeight: 700, color: "var(--text2)", marginBottom: 5, display: "block", textTransform: "uppercase", letterSpacing: "0.07em" };
+
+  const overlay = (
+    <div data-no-ptr style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(28,25,23,0.55)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 99999, padding: 20,
+      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
+    }} onClick={onCancel}>
+      <div className="si" style={{
+        background: "var(--bg-card)", borderRadius: "var(--r)", padding: 22,
+        maxWidth: 460, width: "calc(100% - 40px)",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+        maxHeight: "85vh", overflowY: "auto",
+        boxSizing: "border-box",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <h4 style={{ fontSize: 17, fontWeight: 600, fontFamily: "'Instrument Serif', serif", letterSpacing: "-0.01em" }}>
+            Edit task<span style={{ color: "var(--accent)" }}>.</span>
+          </h4>
+          <button onClick={onCancel} style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--text2)", padding: 4, display: "flex",
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={lbl}>Title</label>
+            <input value={title} onChange={e => { setTitle(e.target.value); setError(""); }}
+              placeholder="Task title" style={fld}
+              onFocus={e => e.target.style.borderColor = "var(--accent)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"} />
+          </div>
+
+          <div>
+            <label style={lbl}>Description</label>
+            <textarea value={desc} onChange={e => setDesc(e.target.value)}
+              placeholder="Add details..." rows={2}
+              style={{ ...fld, resize: "vertical", minHeight: 60 }}
+              onFocus={e => e.target.style.borderColor = "var(--accent)"}
+              onBlur={e => e.target.style.borderColor = "var(--border)"} />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={lbl}>Priority</label>
+              <select value={priority} onChange={e => setPriority(e.target.value)} style={fld}>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Type</label>
+              <select value={time} onChange={e => setTime(e.target.value)} style={fld}>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={lbl}>Group</label>
+            <select value={group} onChange={e => { setGroup(e.target.value); setError(""); }} style={fld}>
+              <option value="">Select group</option>
+              {groups.map(g => (
+                <option key={g.id} value={g.name}>
+                  {g.name} {g.createdBy === userName ? "(yours)" : `(by ${g.createdBy})`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={lbl}>Due Date</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                style={{ ...fld, color: dueDate ? "var(--text)" : "var(--text2)" }} />
+            </div>
+            <div>
+              <label style={lbl}>Due Time</label>
+              <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)}
+                style={{ ...fld, color: dueTime ? "var(--text)" : "var(--text2)" }} />
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              fontSize: 12, color: "var(--red)", fontWeight: 500,
+              padding: "8px 12px", background: "var(--red-lt)", borderRadius: 8,
+            }}>{error}</div>
+          )}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+            <button onClick={onCancel} style={{
+              flex: 1, padding: "11px 16px", border: "1.5px solid var(--border)",
+              borderRadius: "var(--rs)", background: "var(--bg)", color: "var(--text2)",
+              fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+            }}>Cancel</button>
+            <button onClick={handleSave} style={{
+              flex: 1, padding: "11px 16px", border: "none", borderRadius: "var(--rs)",
+              background: "#1C1917", color: "white", fontSize: 13, fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit",
+              boxShadow: "0 2px 8px rgba(28,25,23,0.3)",
+              transition: "box-shadow 0.15s ease, transform 0.15s ease",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.45)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(28,25,23,0.3)"; e.currentTarget.style.transform = "translateY(0)"; }}
+            >Save changes</button>
+          </div>
+        </div>
+      </div>
+
+      {showConfirm && (
+        <ConfirmPopup
+          size="sm"
+          title="Save changes"
+          message={`Apply edits to "${title.length > 40 ? title.substring(0, 40) + "…" : title}"?`}
+          confirmLabel="Save"
+          confirmColor="var(--green)"
+          onConfirm={doSave}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+    </div>
+  );
+
+  if (!mounted || typeof document === "undefined") return null;
+  return ReactDOM.createPortal(overlay, document.body);
+}
+
 
 function AddTaskForm({ dispatch, groups, setTab, defaultTime, existingTasks, showToast, userName }) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -3171,7 +3566,7 @@ function GroupsPage({ groups, setGroups, tasks, onLogout, userName, invitations,
         const g = groups.find(grp => grp.id === membersPopup.id) || membersPopup;
         const isCreator = g.createdBy === userName;
         return (
-          <div style={{
+          <div data-no-ptr style={{
             position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
             background: "rgba(28,25,23,0.55)", zIndex: 99999, padding: 20,
             display: "flex", alignItems: "center", justifyContent: "center",
@@ -3718,6 +4113,50 @@ function SettingsPage({ userName, notifSettings, saveNotifSettings, notifPermiss
         </div>
       </div>
 
+      {/* ── Data & cleanup section ── */}
+      <div className="fu" style={{
+        background: "var(--bg-card)", borderRadius: "var(--r)", padding: "16px 18px",
+        border: "1px solid var(--border)", marginBottom: 16, animationDelay: "0.08s",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--accent)" }}>
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+          </svg>
+          <h3 style={{ fontSize: 14, fontWeight: 700 }}>Data & cleanup</h3>
+        </div>
+        <p style={{ fontSize: 11.5, color: "var(--text2)", marginBottom: 12, lineHeight: 1.5 }}>
+          Keep your task list tidy by auto-deleting old completed tasks.
+        </p>
+        <Row label="Auto-delete completed" sub="Remove completed tasks after this period">
+          <select
+            value={draft.auto_delete_completed || "none"}
+            onChange={e => patch({ auto_delete_completed: e.target.value })}
+            style={{
+              padding: "8px 10px", border: "1.5px solid var(--border)", borderRadius: "var(--rs)",
+              fontSize: 13, fontFamily: "inherit", background: "var(--bg-card)",
+              color: "var(--text)", cursor: "pointer", outline: "none",
+            }}
+          >
+            <option value="none">None</option>
+            <option value="day">After 1 day</option>
+            <option value="week">After 1 week</option>
+            <option value="month">After 1 month</option>
+            <option value="quarter">After 1 quarter</option>
+            <option value="year">After 1 year</option>
+          </select>
+        </Row>
+        {draft.auto_delete_completed && draft.auto_delete_completed !== "none" && (
+          <div style={{
+            fontSize: 10.5, color: "var(--text2)", marginTop: 8, padding: "8px 10px",
+            background: "var(--accent-lt)", borderRadius: 6, lineHeight: 1.5,
+          }}>
+            ⚠ Completed tasks older than {
+              { day: "1 day", week: "1 week", month: "1 month", quarter: "1 quarter", year: "1 year" }[draft.auto_delete_completed]
+            } will be permanently deleted. This action cannot be undone.
+          </div>
+        )}
+      </div>
+
       {/* info note */}
       <div className="fu" style={{
         background: "var(--blue-lt)", borderRadius: "var(--rs)", padding: "12px 16px",
@@ -3805,10 +4244,14 @@ function EmptyState({ msg }) {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      padding: "44px 20px", color: "var(--text2)",
+      padding: "48px 20px", color: "var(--text2)",
     }}>
-      {I.empty}
-      <p style={{ fontSize: 13, marginTop: 10, textAlign: "center" }}>{msg}</p>
+      <img src={TASKYA_ICON} alt="" aria-hidden="true" style={{
+        width: 88, height: 88, borderRadius: 22,
+        opacity: 0.18, filter: "grayscale(0.4)",
+        marginBottom: 14, userSelect: "none", pointerEvents: "none",
+      }} />
+      <p style={{ fontSize: 13, textAlign: "center", lineHeight: 1.5, maxWidth: 280 }}>{msg}</p>
     </div>
   );
 }
@@ -3839,7 +4282,19 @@ function Toast({ message, type }) {
 }
 
 function EmptyMsg({ msg }) {
-  return <div style={{ color: "var(--text2)", fontSize: 12, padding: "14px 0", textAlign: "center", fontStyle: "italic" }}>{msg}</div>;
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "20px 12px", color: "var(--text2)",
+    }}>
+      <img src={TASKYA_ICON} alt="" aria-hidden="true" style={{
+        width: 48, height: 48, borderRadius: 12,
+        opacity: 0.18, filter: "grayscale(0.4)",
+        marginBottom: 8, userSelect: "none", pointerEvents: "none",
+      }} />
+      <div style={{ fontSize: 12, textAlign: "center", fontStyle: "italic" }}>{msg}</div>
+    </div>
+  );
 }
 
 /* ═══════════════════════ GUIDED TOUR ═══════════════════════ */
